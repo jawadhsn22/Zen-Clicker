@@ -17,6 +17,7 @@ export const INITIAL_STATE: GameState = {
     sfxVolume: 0.5,
     musicVolume: 0.0, // Default off or low
     clickSound: 'default',
+    hapticsEnabled: true,
   }
 };
 

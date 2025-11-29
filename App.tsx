@@ -8,7 +8,7 @@ import Toast from './components/Toast';
 import ChallengeWidget from './components/ChallengeWidget';
 import MultiplayerGame from './components/MultiplayerGame';
 import PrestigeSuccess from './components/PrestigeSuccess';
-import { Crown, Settings, Users, Volume2, VolumeX, Moon, MousePointer2, ShoppingBag, Menu, Sparkles, Save } from 'lucide-react';
+import { Crown, Settings, Users, Volume2, VolumeX, Moon, MousePointer2, ShoppingBag, Menu, Sparkles, Save, Vibrate } from 'lucide-react';
 import { playSound, setVolumes } from './utils/sound';
 
 const App: React.FC = () => {
@@ -284,6 +284,19 @@ const App: React.FC = () => {
     // Preview sound
     setTimeout(() => playSound(variant as any), 100);
   };
+  
+  const toggleHaptics = () => {
+    setGameState(prev => {
+      const newVal = !prev.settings.hapticsEnabled;
+      if (newVal && typeof navigator !== 'undefined' && navigator.vibrate) {
+        navigator.vibrate(10); // Feedback
+      }
+      return {
+        ...prev,
+        settings: { ...prev.settings, hapticsEnabled: newVal }
+      };
+    });
+  };
 
   const handleMultiplayerComplete = ({ winnerIndex, isOnline }: { winnerIndex: number | null, isOnline: boolean }) => {
       setGameState(prev => ({
@@ -341,7 +354,7 @@ const App: React.FC = () => {
         </div>
 
         <div>
-                <h4 className={`text-xs font-bold uppercase tracking-wider mb-3 ${currentTheme.colors.textDim}`}>Sound</h4>
+                <h4 className={`text-xs font-bold uppercase tracking-wider mb-3 ${currentTheme.colors.textDim}`}>Sound & Haptics</h4>
                 <div className="space-y-6">
                 <div className="flex items-center gap-4">
                     <Volume2 size={20} className={currentTheme.colors.textDim} />
@@ -372,6 +385,26 @@ const App: React.FC = () => {
                             className="w-full h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer accent-white"
                         />
                     </div>
+                </div>
+
+                {/* Haptics Toggle */}
+                <div className="flex items-center justify-between">
+                   <div className="flex items-center gap-4">
+                      <Vibrate size={20} className={currentTheme.colors.textDim} />
+                      <span className="text-xs uppercase font-medium tracking-wider">Vibration</span>
+                   </div>
+                   <button 
+                      onClick={toggleHaptics}
+                      className={`
+                        w-12 h-6 rounded-full p-1 transition-colors
+                        ${gameState.settings.hapticsEnabled ? currentTheme.colors.accent.replace('text-', 'bg-') : 'bg-white/10'}
+                      `}
+                   >
+                      <div className={`
+                        w-4 h-4 rounded-full bg-white shadow-sm transition-transform
+                        ${gameState.settings.hapticsEnabled ? 'translate-x-6' : 'translate-x-0'}
+                      `} />
+                   </button>
                 </div>
                 
                 {/* Click Sound Selector */}
@@ -510,6 +543,7 @@ const App: React.FC = () => {
                     prestigeMultiplier={prestigeMultiplier}
                     prestigeLevel={gameState.prestigeLevel}
                     clickSound={gameState.settings.clickSound}
+                    hapticsEnabled={gameState.settings.hapticsEnabled}
                 />
             </div>
 

@@ -49,6 +49,7 @@ export interface GameState {
     sfxVolume: number; // 0 to 1
     musicVolume: number; // 0 to 1
     clickSound: ClickSoundVariant;
+    hapticsEnabled: boolean;
   };
 }
 

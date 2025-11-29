@@ -14,9 +14,20 @@ interface ClickerProps {
   prestigeMultiplier: number;
   prestigeLevel: number;
   clickSound?: ClickSoundVariant;
+  hapticsEnabled?: boolean;
 }
 
-const Clicker: React.FC<ClickerProps> = ({ onClick, points, clickPower, autoPointsPerSecond, theme, prestigeMultiplier, prestigeLevel, clickSound = 'default' }) => {
+const Clicker: React.FC<ClickerProps> = ({ 
+  onClick, 
+  points, 
+  clickPower, 
+  autoPointsPerSecond, 
+  theme, 
+  prestigeMultiplier, 
+  prestigeLevel, 
+  clickSound = 'default',
+  hapticsEnabled = true
+}) => {
   const [particles, setParticles] = useState<Particle[]>([]);
   const [isPressed, setIsPressed] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -24,6 +35,12 @@ const Clicker: React.FC<ClickerProps> = ({ onClick, points, clickPower, autoPoin
   const handleInteraction = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     // Play sound
     playSound(clickSound === 'default' ? 'click' : clickSound);
+
+    // Haptic Feedback (Vibration)
+    if (hapticsEnabled && typeof navigator !== 'undefined' && navigator.vibrate) {
+      // Short 10ms pulse for crisp feedback
+      navigator.vibrate(10);
+    }
 
     let clientX, clientY;
     if ('touches' in e) {
@@ -75,7 +92,7 @@ const Clicker: React.FC<ClickerProps> = ({ onClick, points, clickPower, autoPoin
     setTimeout(() => setIsPressed(false), 80);
 
     onClick();
-  }, [clickPower, prestigeMultiplier, onClick, theme, clickSound]);
+  }, [clickPower, prestigeMultiplier, onClick, theme, clickSound, hapticsEnabled]);
 
   // Number formatter
   const formatNumber = (num: number) => {
