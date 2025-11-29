@@ -261,27 +261,32 @@ const App: React.FC = () => {
   };
 
   const handlePrestigeComplete = () => {
-    setGameState(prev => {
-        // Construct the new state carefully to ensure clean reset + persistence of prestige data
-        const newState: GameState = {
-            ...INITIAL_STATE,
-            // Keep stats that persist through prestige
-            totalClicks: prev.totalClicks,
-            unlockedAchievements: prev.unlockedAchievements,
-            prestigeLevel: prev.prestigeLevel + 1,
-            // Keep settings
-            theme: prev.theme,
-            difficulty: prev.difficulty,
-            settings: prev.settings,
-            multiplayerMatches: prev.multiplayerMatches,
-            multiplayerWins: prev.multiplayerWins,
-        };
-        
-        // CRITICAL: Force save immediately to disk to prevent data loss if user refreshes right after
-        saveGame(newState);
-        
-        return newState;
-    });
+    // Explicitly construct the new state to prevent any reference issues with INITIAL_STATE
+    // and to ensure a clean reset while preserving critical player data.
+    const newState: GameState = {
+        points: 0,
+        clickPower: 1,
+        autoPointsPerSecond: 0,
+        upgrades: {},
+        startTime: Date.now(),
+        // Persisted Data
+        totalClicks: gameState.totalClicks,
+        unlockedAchievements: gameState.unlockedAchievements,
+        prestigeLevel: gameState.prestigeLevel + 1,
+        theme: gameState.theme,
+        difficulty: gameState.difficulty,
+        settings: gameState.settings,
+        multiplayerMatches: gameState.multiplayerMatches,
+        multiplayerWins: gameState.multiplayerWins,
+    };
+
+    setGameState(newState);
+    
+    // CRITICAL: Force synchronous save to localStorage immediately.
+    // This prevents data loss if the user refreshes or closes the browser 
+    // right after the prestige animation finishes but before the next auto-save.
+    localStorage.setItem('zenClickerSave', JSON.stringify(newState));
+    
     setShowPrestigeSuccess(false);
   };
 
