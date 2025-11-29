@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Peer } from 'peerjs';
+import { Peer, DataConnection } from 'peerjs';
 import { ThemeConfig } from '../types';
-import { Copy, Check, Globe, Loader2, Zap, Trophy, Link as LinkIcon, AlertCircle, Circle } from 'lucide-react';
+import { Copy, Check, Globe, Loader2, Zap, Trophy, Link as LinkIcon, AlertCircle } from 'lucide-react';
 import { playSound } from '../utils/sound';
 
 interface OnlineDuelProps {
@@ -13,36 +13,65 @@ interface OnlineDuelProps {
 
 type GamePhase = 'INIT' | 'LOBBY' | 'CONNECTING' | 'COUNTDOWN' | 'PLAYING' | 'FINISHED';
 
+interface PlayerState {
+  peerId: string;
+  score: number;
+  color: string;
+  label: string;
+  isMe: boolean;
+  isHost: boolean;
+}
+
 interface GameMessage {
-  type: 'HELLO' | 'START_REQ' | 'START_CONFIRM' | 'CLICK' | 'GAME_OVER' | 'REMATCH' | 'SYNC';
+  type: 'HELLO' | 'LOBBY_UPDATE' | 'START_REQ' | 'START_CONFIRM' | 'CLICK' | 'GAME_UPDATE' | 'GAME_OVER' | 'REMATCH';
   payload?: any;
 }
 
 const GAME_DURATION = 10;
+const MAX_PLAYERS = 4;
+
+const PLAYER_COLORS = [
+  'text-red-500',    // P1
+  'text-blue-500',   // P2
+  'text-green-500',  // P3
+  'text-yellow-500'  // P4
+];
+
+const BG_COLORS = [
+  'bg-red-500',
+  'bg-blue-500',
+  'bg-green-500',
+  'bg-yellow-500'
+];
 
 const OnlineDuel: React.FC<OnlineDuelProps> = ({ initialRoomId, onClose, theme, onMatchComplete }) => {
   const [phase, setPhase] = useState<GamePhase>('INIT');
   const [myId, setMyId] = useState<string>('');
   const [hostId, setHostId] = useState<string>('');
-  const [conn, setConn] = useState<any>(null);
-  const [isConnected, setIsConnected] = useState(false); // Track if data channel is actually open
+  
+  // Players state - managed by Host, synced to Guests
+  const [players, setPlayers] = useState<PlayerState[]>([]);
+  
+  // Connection state
+  const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [waitingForConfirm, setWaitingForConfirm] = useState(false);
-  
-  const [myScore, setMyScore] = useState(0);
-  const [opponentScore, setOpponentScore] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(GAME_DURATION);
   const [copySuccess, setCopySuccess] = useState(false);
   const [isHost, setIsHost] = useState(!initialRoomId);
 
+  // Game state
+  const [timeLeft, setTimeLeft] = useState(GAME_DURATION);
+
+  // Refs
   const peerRef = useRef<Peer | null>(null);
+  const connectionsRef = useRef<DataConnection[]>([]); // For Host: Array of guest connections
+  const hostConnRef = useRef<DataConnection | null>(null); // For Guest: Connection to host
   const timerRef = useRef<number | null>(null);
-  const syncIntervalRef = useRef<number | null>(null);
   const handshakeTimeoutRef = useRef<number | null>(null);
 
-  // Initialize Peer
+  // --- Initialization ---
+
   useEffect(() => {
-    // Explicit STUN configuration for better NAT traversal
     const peer = new Peer({
       config: {
         iceServers: [
@@ -58,108 +87,218 @@ const OnlineDuel: React.FC<OnlineDuelProps> = ({ initialRoomId, onClose, theme, 
 
     peer.on('open', (id) => {
       setMyId(id);
+      
       if (initialRoomId) {
+        // GUEST LOGIC
         setPhase('CONNECTING');
         connectToHost(peer, initialRoomId);
       } else {
+        // HOST LOGIC
         setPhase('LOBBY');
+        setPlayers([{
+          peerId: id,
+          score: 0,
+          color: PLAYER_COLORS[0],
+          label: 'Player 1 (Host)',
+          isMe: true,
+          isHost: true
+        }]);
+        setIsConnected(true); // Host is connected to themselves essentially
       }
     });
 
-    peer.on('connection', (connection) => {
-      setupConnection(connection);
+    // HOST: Handle incoming connections
+    peer.on('connection', (conn) => {
+      if (!initialRoomId) {
+         handleHostIncomingConnection(conn);
+      }
     });
 
     peer.on('error', (err) => {
       console.error(err);
-      setError("Connection error. Please refresh and try again.");
+      setError("Connection error. Refresh to try again.");
       setIsConnected(false);
     });
 
     return () => {
       peer.destroy();
-      if (timerRef.current) clearInterval(timerRef.current);
-      if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
-      if (handshakeTimeoutRef.current) clearTimeout(handshakeTimeoutRef.current);
+      cleanupTimers();
     };
   }, []);
 
-  const connectToHost = (peer: Peer, id: string) => {
-    setHostId(id);
-    const connection = peer.connect(id);
-    setupConnection(connection);
+  const cleanupTimers = () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    if (handshakeTimeoutRef.current) clearTimeout(handshakeTimeoutRef.current);
   };
 
-  const setupConnection = (connection: any) => {
-    setConn(connection);
-    setIsConnected(false); // Reset on new connection attempt
-    
-    connection.on('open', () => {
-      console.log('Connection opened');
-      setIsConnected(true);
-      setError(null);
-      connection.send({ type: 'HELLO' });
-      // Only set to lobby if we haven't already started
-      setPhase('LOBBY');
+  // --- Host Logic ---
+
+  const handleHostIncomingConnection = (conn: DataConnection) => {
+    conn.on('open', () => {
+      // Check limits
+      if (connectionsRef.current.length >= MAX_PLAYERS - 1) {
+        conn.close();
+        return;
+      }
+
+      connectionsRef.current.push(conn);
       playSound('success');
+
+      // Add new player locally
+      setPlayers(prev => {
+        const newPlayerIdx = prev.length;
+        const newPlayers = [
+          ...prev, 
+          {
+            peerId: conn.peer,
+            score: 0,
+            color: PLAYER_COLORS[newPlayerIdx],
+            label: `Player ${newPlayerIdx + 1}`,
+            isMe: false,
+            isHost: false
+          }
+        ];
+        
+        // Broadcast new list to EVERYONE
+        broadcastToGuests({
+          type: 'LOBBY_UPDATE',
+          payload: newPlayers
+        });
+        
+        return newPlayers;
+      });
     });
 
-    connection.on('data', (data: GameMessage) => {
-      handleData(data, connection);
-    });
-
-    connection.on('close', () => {
-      console.log('Connection closed');
-      setIsConnected(false);
-      setError("Opponent disconnected.");
-      setPhase('INIT');
-    });
-
-    connection.on('error', (err: any) => {
-      console.error('Connection error:', err);
-      setIsConnected(false);
+    conn.on('data', (data: any) => handleHostDataReceived(data, conn.peer));
+    
+    conn.on('close', () => {
+      // Remove player
+      connectionsRef.current = connectionsRef.current.filter(c => c.peer !== conn.peer);
+      setPlayers(prev => {
+        const remaining = prev.filter(p => p.peerId !== conn.peer && p.peerId !== myId);
+        // Rebuild list to keep colors consistent (Host always 0)
+        const hostPlayer = prev.find(p => p.isHost)!;
+        const newList = [hostPlayer, ...remaining].map((p, i) => ({
+           ...p,
+           color: PLAYER_COLORS[i],
+           label: i === 0 ? 'Player 1 (Host)' : `Player ${i + 1}`
+        }));
+        
+        broadcastToGuests({ type: 'LOBBY_UPDATE', payload: newList });
+        return newList;
+      });
     });
   };
 
-  const handleData = (data: GameMessage, connection: any) => {
+  const handleHostDataReceived = (data: GameMessage, senderId: string) => {
     switch (data.type) {
-      case 'HELLO':
-        // Connection established handshake
-        break;
-      case 'START_REQ':
-        // Host requested start. Guest sends confirmation then starts countdown.
-        if (connection && connection.open) {
-            connection.send({ type: 'START_CONFIRM' });
-            startCountdown();
-        }
-        break;
       case 'START_CONFIRM':
-        // Host receives confirmation from guest.
-        if (handshakeTimeoutRef.current) clearTimeout(handshakeTimeoutRef.current);
-        setWaitingForConfirm(false);
-        startCountdown();
+        // Wait for all? For simplicity, we assume if connection is open, we go.
+        // In a strict 4-player handshake, we'd wait for all. 
+        // For now, we trust the TCP-like nature of WebRTC DataChannels.
         break;
+      
       case 'CLICK':
-        // Immediate visual update
-        setOpponentScore(data.payload);
+        // Update score for specific player
+        setPlayers(prev => {
+          const next = prev.map(p => {
+             if (p.peerId === senderId) return { ...p, score: p.score + 1 };
+             return p;
+          });
+          // Broadcast update immediately (authoritative state)
+          broadcastToGuests({ type: 'GAME_UPDATE', payload: next });
+          return next;
+        });
         break;
-      case 'SYNC':
-        // Periodic consistency check - take the max to be safe
-        setOpponentScore(prev => Math.max(prev, data.payload));
-        break;
-      case 'GAME_OVER':
-        setPhase('FINISHED');
-        break;
+
       case 'REMATCH':
-        resetGame();
-        break;
+         // If a guest requests rematch, we reset.
+         resetGame();
+         broadcastToGuests({ type: 'REMATCH' });
+         break;
     }
   };
 
+  const broadcastToGuests = (msg: GameMessage) => {
+    connectionsRef.current.forEach(conn => {
+      if (conn.open) conn.send(msg);
+    });
+  };
+
+  // --- Guest Logic ---
+
+  const connectToHost = (peer: Peer, id: string) => {
+    setHostId(id);
+    const conn = peer.connect(id);
+    hostConnRef.current = conn;
+    
+    conn.on('open', () => {
+      setIsConnected(true);
+      setError(null);
+      setPhase('LOBBY');
+      playSound('success');
+      // Host will send us the player list shortly
+    });
+
+    conn.on('data', (data: any) => handleGuestDataReceived(data));
+    
+    conn.on('close', () => {
+      setIsConnected(false);
+      setError("Host disconnected.");
+      setPhase('INIT');
+    });
+
+    conn.on('error', () => {
+      setIsConnected(false);
+      setError("Connection to host failed.");
+    });
+  };
+
+  const handleGuestDataReceived = (data: GameMessage) => {
+    switch (data.type) {
+      case 'LOBBY_UPDATE':
+        // Payload is the full list of players from host
+        // We need to mark "isMe" correctly
+        const lobbyList: PlayerState[] = data.payload;
+        setPlayers(lobbyList.map(p => ({
+          ...p,
+          isMe: p.peerId === peerRef.current?.id
+        })));
+        break;
+
+      case 'START_REQ':
+         // Host starting game
+         if (hostConnRef.current?.open) {
+             hostConnRef.current.send({ type: 'START_CONFIRM' }); // Ack
+         }
+         startCountdown();
+         break;
+
+      case 'GAME_UPDATE':
+         // Authoritative state from host
+         const gameList: PlayerState[] = data.payload;
+         setPlayers(gameList.map(p => ({
+           ...p,
+           isMe: p.peerId === peerRef.current?.id
+         })));
+         break;
+      
+      case 'GAME_OVER':
+         setPhase('FINISHED');
+         break;
+
+      case 'REMATCH':
+         resetGame();
+         break;
+    }
+  };
+
+  // --- Shared Game Logic ---
+
   const startCountdown = () => {
     setPhase('COUNTDOWN');
-    setMyScore(0);
-    setOpponentScore(0);
+    // Reset scores
+    setPlayers(prev => prev.map(p => ({ ...p, score: 0 })));
     setTimeLeft(GAME_DURATION);
     
     let count = 3;
@@ -176,99 +315,109 @@ const OnlineDuel: React.FC<OnlineDuelProps> = ({ initialRoomId, onClose, theme, 
   };
 
   const startGameTimer = () => {
-    // Game countdown timer
+    // Only Host manages the timer logic that ends the game
+    // But both run a local countdown for UI display
     timerRef.current = window.setInterval(() => {
-      setTimeLeft((prev) => {
+      setTimeLeft(prev => {
         if (prev <= 1) {
-          endGame();
+          if (isHost) {
+             endGameHost();
+          }
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
-
-    // Score synchronization timer (every 2s)
-    syncIntervalRef.current = window.setInterval(() => {
-      setMyScore(currentScore => {
-        // We use the functional update to get the latest score value to send
-        if (conn && conn.open) {
-          conn.send({ type: 'SYNC', payload: currentScore });
-        }
-        return currentScore;
-      });
-    }, 2000);
   };
 
-  const endGame = () => {
-    if (timerRef.current) clearInterval(timerRef.current);
-    if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
+  const endGameHost = () => {
+    cleanupTimers();
+    broadcastToGuests({ type: 'GAME_OVER' });
     setPhase('FINISHED');
     playSound('success');
-    onMatchComplete(myScore > opponentScore);
+    
+    // Determine winner
+    const winner = [...players].sort((a,b) => b.score - a.score)[0];
+    onMatchComplete(winner.isMe);
   };
 
+  // For Guests, they just wait for GAME_OVER message, but we clear local interval
+  useEffect(() => {
+    if (phase === 'FINISHED') {
+        cleanupTimers();
+        if (!isHost) playSound('success');
+    }
+  }, [phase, isHost]);
+
   const handleHostStart = () => {
-    // Double check connection state before sending
-    if (isConnected && conn && conn.open) {
+    if (isHost && connectionsRef.current.length > 0) {
       setWaitingForConfirm(true);
-      conn.send({ type: 'START_REQ' });
-
-      // Safety timeout: If guest doesn't reply in 5s, reset state
-      if (handshakeTimeoutRef.current) clearTimeout(handshakeTimeoutRef.current);
-      handshakeTimeoutRef.current = window.setTimeout(() => {
+      broadcastToGuests({ type: 'START_REQ' });
+      
+      // Start locally after short delay (simulating handshake roundtrip)
+      setTimeout(() => {
         setWaitingForConfirm(false);
-        setError("Handshake timed out. Try again.");
-      }, 5000);
-
-    } else {
-        setError("Connection unstable. Please wait.");
+        startCountdown();
+      }, 500);
     }
   };
 
   const handleClick = () => {
     if (phase !== 'PLAYING') return;
-    const newScore = myScore + 1;
-    setMyScore(newScore);
     playSound('click');
-    if (conn && conn.open) {
-      conn.send({ type: 'CLICK', payload: newScore });
+
+    if (isHost) {
+        // Host updates self locally then broadcasts
+        setPlayers(prev => {
+            const next = prev.map(p => p.isMe ? { ...p, score: p.score + 1 } : p);
+            broadcastToGuests({ type: 'GAME_UPDATE', payload: next });
+            return next;
+        });
+    } else {
+        // Guest sends click to host
+        if (hostConnRef.current?.open) {
+            hostConnRef.current.send({ type: 'CLICK' });
+        }
+        // Optimistic update
+        setPlayers(prev => prev.map(p => p.isMe ? { ...p, score: p.score + 1 } : p));
     }
   };
 
   const handleRematch = () => {
-    resetGame();
-    if (conn && conn.open) conn.send({ type: 'REMATCH' });
+    if (isHost) {
+        resetGame();
+        broadcastToGuests({ type: 'REMATCH' });
+    } else {
+        if (hostConnRef.current?.open) {
+            hostConnRef.current.send({ type: 'REMATCH' });
+        }
+        // Wait for host to actually reset
+    }
   };
 
   const resetGame = () => {
     setPhase('LOBBY');
-    setMyScore(0);
-    setOpponentScore(0);
+    setPlayers(prev => prev.map(p => ({ ...p, score: 0 })));
     setTimeLeft(GAME_DURATION);
   };
+
+  // --- Utils ---
 
   const getInviteUrl = useCallback(() => {
     if (!myId) return 'Generating...';
     try {
       const url = new URL(window.location.href);
-      
-      // Remove any existing query params or hash
       url.search = '';
       url.hash = '';
-
-      // Fix for "Server Not Found" on static hosts:
       const path = url.pathname;
       const lastSegment = path.split('/').pop();
       const looksLikeFile = lastSegment && lastSegment.includes('.');
-      
       if (!path.endsWith('/') && !looksLikeFile) {
         url.pathname = path + '/';
       }
-
       url.searchParams.set('room', myId);
       return url.toString();
     } catch (e) {
-      console.error('URL generation failed:', e);
       return `${window.location.origin}${window.location.pathname}?room=${myId}`;
     }
   }, [myId]);
@@ -282,214 +431,196 @@ const OnlineDuel: React.FC<OnlineDuelProps> = ({ initialRoomId, onClose, theme, 
     }
   };
 
-  // Render Helpers
-  const renderLobby = () => {
-    // Logic to determine status text based on detailed connection state
-    let statusTitle = '';
-    let statusDesc = '';
+  // --- Render ---
 
-    if (isConnected) {
-        statusTitle = 'Opponent Connected!';
-        statusDesc = 'Ready to duel.';
-    } else if (conn) {
-        statusTitle = 'Connecting...';
-        statusDesc = 'Establishing secure handshake...';
-    } else if (isHost) {
-        statusTitle = 'Waiting for Player...';
-        statusDesc = 'Share the link below to invite a friend.';
-    } else {
-        statusTitle = 'Connecting to Host...';
-        statusDesc = 'Locating game room...';
-    }
-
-    return (
+  const renderLobby = () => (
     <div className="flex flex-col items-center gap-6 animate-slide-in w-full max-w-md">
-      <div className={`relative p-4 rounded-full bg-white/5 ${theme.colors.accent}`}>
-        <Globe size={48} className={!isConnected && conn ? "animate-pulse" : ""} />
-        {/* Status Dot */}
-        <div className={`
-            absolute bottom-0 right-0 w-4 h-4 rounded-full border-2 border-zinc-900 
-            ${isConnected ? 'bg-green-500' : conn ? 'bg-yellow-500' : 'bg-red-500'}
-        `} />
-      </div>
-      
-      <div className="text-center">
-        <h3 className="text-2xl font-bold text-white mb-2">
-          {statusTitle}
-        </h3>
-        <p className="text-zinc-400 text-sm">
-          {statusDesc}
-        </p>
-      </div>
-
-      {isHost && !isConnected && (
-        <div className="w-full">
-           <div className={`flex items-center gap-2 p-3 rounded-xl border ${theme.colors.border} bg-black/20`}>
-              <LinkIcon size={16} className="text-zinc-500 shrink-0" />
-              <input 
-                readOnly 
-                value={getInviteUrl()} 
-                onClick={(e) => e.currentTarget.select()}
-                className="bg-transparent border-none text-xs text-zinc-300 w-full focus:outline-none font-mono truncate cursor-pointer"
-              />
-              <button 
-                onClick={copyInviteLink}
-                className={`p-2 rounded-lg hover:bg-white/10 transition-colors ${copySuccess ? 'text-green-400' : 'text-white'}`}
-              >
-                {copySuccess ? <Check size={18} /> : <Copy size={18} />}
-              </button>
-           </div>
-           <p className="text-center text-xs text-zinc-500 mt-2">Only share with people you trust.</p>
-        </div>
-      )}
-
-      {/* Start Button - Only show if we know about a connection attempt */}
-      {conn && isHost && (
-        <button 
-          onClick={handleHostStart}
-          disabled={waitingForConfirm || !isConnected}
-          className={`
-            w-full py-4 rounded-xl font-bold text-lg uppercase tracking-widest
-            bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500
-            text-white shadow-lg shadow-violet-500/20
-            animate-pulse-slow
-            disabled:opacity-50 disabled:cursor-not-allowed disabled:animate-none
-            transition-all duration-300
-          `}
-        >
-          {waitingForConfirm ? (
-            <div className="flex items-center justify-center gap-2">
-                 <Loader2 size={20} className="animate-spin" />
-                 <span>Syncing...</span>
-            </div>
-          ) : !isConnected ? (
-            <div className="flex items-center justify-center gap-2">
-                 <Loader2 size={20} className="animate-spin" />
-                 <span>Connecting...</span>
-            </div>
-          ) : 'Start Duel'}
-        </button>
-      )}
-
-      {conn && !isHost && (
-        <div className="flex items-center gap-3 text-zinc-400 bg-white/5 px-6 py-3 rounded-full">
-          <Loader2 size={18} className="animate-spin" />
-          <span>{isConnected ? 'Waiting for host to start...' : 'Handshaking...'}</span>
-        </div>
-      )}
-    </div>
-    );
-  };
-
-  const renderGame = () => (
-    <div className="flex-1 w-full flex flex-col relative">
-       {/* Timer */}
-       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 pointer-events-none">
-          {phase === 'COUNTDOWN' ? (
-             <div className="text-6xl font-black text-white animate-scale-bounce">Ready</div>
-          ) : (
-            <div className={`text-5xl font-mono font-bold ${timeLeft <= 3 ? 'text-red-500' : 'text-white'} drop-shadow-lg`}>
-              {timeLeft}
-            </div>
-          )}
+       <div className={`relative p-4 rounded-full bg-white/5 ${theme.colors.accent}`}>
+         <Globe size={48} className={isHost && players.length < 2 ? "animate-pulse" : ""} />
        </div>
 
-       <div className="flex-1 flex flex-col md:flex-row h-full">
-          {/* My Side */}
-          <div className="flex-1 relative border-b md:border-b-0 md:border-r border-white/10">
-            <button
-                onPointerDown={(e) => {
-                    e.preventDefault(); 
-                    handleClick();
-                }}
-                disabled={phase !== 'PLAYING'}
-                className={`w-full h-full flex flex-col items-center justify-center transition-all ${phase === 'PLAYING' ? 'active:bg-white/5 cursor-pointer' : 'cursor-default'}`}
-            >
-                <span className="text-sm uppercase tracking-widest text-zinc-500 mb-4">You</span>
-                <span className={`text-8xl font-black ${theme.colors.accent} drop-shadow-2xl transition-all ${phase === 'PLAYING' ? 'scale-100' : 'opacity-50'}`}>
-                    {myScore}
+       <div className="text-center">
+          <h3 className="text-2xl font-bold text-white mb-2">
+             {isHost ? 'Lobby' : 'Joined Lobby'}
+          </h3>
+          <p className="text-zinc-400 text-sm">
+             {players.length} / {MAX_PLAYERS} Players Ready
+          </p>
+       </div>
+
+       {/* Player List */}
+       <div className="w-full grid grid-cols-2 gap-2">
+          {players.map((p, i) => (
+             <div key={p.peerId} className={`
+                flex items-center gap-2 p-3 rounded-xl border bg-black/40
+                ${p.isMe ? 'border-white/20' : 'border-transparent'}
+             `}>
+                <div className={`w-3 h-3 rounded-full ${p.color.replace('text-', 'bg-')}`} />
+                <span className={`text-sm ${p.isMe ? 'font-bold text-white' : 'text-zinc-400'}`}>
+                    {p.label} {p.isMe && '(You)'}
                 </span>
-                <span className="mt-8 text-zinc-500 text-xs uppercase">Tap to click</span>
-            </button>
-          </div>
-
-          {/* Opponent Side */}
-          <div className="flex-1 flex flex-col items-center justify-center bg-black/20">
-             <span className="text-sm uppercase tracking-widest text-zinc-600 mb-4">Opponent</span>
-             <span className="text-8xl font-black text-zinc-700 drop-shadow-2xl">
-                 {opponentScore}
-             </span>
-          </div>
+             </div>
+          ))}
+          {/* Empty Slots */}
+          {Array.from({ length: MAX_PLAYERS - players.length }).map((_, i) => (
+             <div key={i} className="flex items-center gap-2 p-3 rounded-xl border border-dashed border-white/10 text-zinc-600">
+                <div className="w-3 h-3 rounded-full bg-zinc-800" />
+                <span className="text-sm">Empty</span>
+             </div>
+          ))}
        </div>
+
+       {isHost && (
+         <div className="w-full mt-4">
+            <div className={`flex items-center gap-2 p-3 rounded-xl border ${theme.colors.border} bg-black/20`}>
+                <LinkIcon size={16} className="text-zinc-500 shrink-0" />
+                <input 
+                  readOnly 
+                  value={getInviteUrl()} 
+                  onClick={(e) => e.currentTarget.select()}
+                  className="bg-transparent border-none text-xs text-zinc-300 w-full focus:outline-none font-mono truncate cursor-pointer"
+                />
+                <button onClick={copyInviteLink} className={`p-2 hover:bg-white/10 rounded ${copySuccess ? 'text-green-400' : 'text-white'}`}>
+                   {copySuccess ? <Check size={18} /> : <Copy size={18} />}
+                </button>
+            </div>
+            
+            <button 
+               onClick={handleHostStart}
+               disabled={players.length < 2 || waitingForConfirm}
+               className={`
+                  w-full mt-6 py-4 rounded-xl font-bold text-lg uppercase tracking-widest
+                  bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500
+                  text-white shadow-lg shadow-violet-500/20
+                  disabled:opacity-50 disabled:cursor-not-allowed
+                  transition-all
+               `}
+            >
+               {waitingForConfirm ? <Loader2 className="animate-spin mx-auto" /> : 'Start Match'}
+            </button>
+         </div>
+       )}
+
+       {!isHost && (
+          <div className="flex items-center gap-3 text-zinc-400 bg-white/5 px-6 py-3 rounded-full mt-4">
+             <Loader2 size={18} className="animate-spin" />
+             <span>Waiting for host...</span>
+          </div>
+       )}
     </div>
   );
 
-  const renderResults = () => {
-    const won = myScore > opponentScore;
-    const tie = myScore === opponentScore;
+  const renderGame = () => {
+    // Dynamic grid based on player count
+    // 2 players: 2 cols
+    // 3-4 players: 2x2 grid
+    const gridClass = players.length <= 2 ? 'grid-rows-2 md:grid-rows-1 md:grid-cols-2' : 'grid-cols-2 grid-rows-2';
 
     return (
-      <div className="flex flex-col items-center justify-center gap-6 animate-slide-in">
-        <div className="relative">
-             <Trophy size={80} className={`${won ? 'text-yellow-400' : tie ? 'text-zinc-400' : 'text-zinc-700'} drop-shadow-2xl`} />
-             {won && <div className="absolute inset-0 bg-yellow-400 blur-2xl opacity-20" />}
-        </div>
-        
-        <h2 className="text-5xl font-bold text-white uppercase tracking-tighter">
-            {won ? 'Victory!' : tie ? 'Draw' : 'Defeat'}
-        </h2>
-        
-        <div className="flex items-end gap-8 text-2xl font-mono">
-            <div className="text-center">
-                <div className="text-xs text-zinc-500 uppercase mb-1">You</div>
-                <div className={won ? 'text-green-400' : 'text-white'}>{myScore}</div>
-            </div>
-            <div className="text-zinc-600 font-light">:</div>
-            <div className="text-center">
-                <div className="text-xs text-zinc-500 uppercase mb-1">Opponent</div>
-                <div className={!won && !tie ? 'text-red-400' : 'text-white'}>{opponentScore}</div>
-            </div>
-        </div>
+      <div className="flex-1 w-full h-full relative flex flex-col">
+         {/* Timer Overlay */}
+         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 pointer-events-none">
+            {phase === 'COUNTDOWN' ? (
+                <div className="text-6xl font-black text-white animate-scale-bounce">Ready</div>
+            ) : (
+                <div className={`text-6xl font-mono font-bold ${timeLeft <= 3 ? 'text-red-500' : 'text-white'} drop-shadow-2xl`}>
+                {timeLeft}
+                </div>
+            )}
+         </div>
 
-        <button 
-          onClick={handleRematch}
-          className="mt-8 px-8 py-3 bg-white text-black font-bold rounded-full hover:scale-105 transition-transform"
-        >
-          Play Again
-        </button>
+         <div className={`flex-1 grid ${gridClass} w-full h-full`}>
+            {players.map((p, i) => (
+                <div key={p.peerId} className={`relative border border-white/5 ${i % 2 === 0 ? 'bg-black/20' : 'bg-transparent'}`}>
+                    {p.isMe ? (
+                         <button
+                            onPointerDown={(e) => { e.preventDefault(); handleClick(); }}
+                            disabled={phase !== 'PLAYING'}
+                            className={`w-full h-full flex flex-col items-center justify-center active:bg-white/5 transition-colors`}
+                         >
+                            <span className="text-xs uppercase tracking-widest text-zinc-500 mb-2">{p.label} (You)</span>
+                            <span className={`text-6xl font-black ${p.color} drop-shadow-xl`}>{p.score}</span>
+                            <span className="mt-4 text-xs text-zinc-600">TAP HERE</span>
+                         </button>
+                    ) : (
+                        <div className="w-full h-full flex flex-col items-center justify-center">
+                            <span className="text-xs uppercase tracking-widest text-zinc-600 mb-2">{p.label}</span>
+                            <span className="text-6xl font-black text-zinc-700 drop-shadow-xl">{p.score}</span>
+                        </div>
+                    )}
+                </div>
+            ))}
+         </div>
       </div>
+    );
+  };
+
+  const renderResults = () => {
+    // Sort by score
+    const sorted = [...players].sort((a,b) => b.score - a.score);
+    const winner = sorted[0];
+    const amIWinner = winner.isMe;
+    const isTie = sorted[0].score === sorted[1]?.score;
+
+    return (
+        <div className="flex flex-col items-center justify-center gap-6 animate-slide-in">
+           <Trophy size={80} className={`${amIWinner ? 'text-yellow-400' : 'text-zinc-600'} drop-shadow-2xl`} />
+           
+           <h2 className="text-4xl font-bold text-white uppercase tracking-tighter">
+              {amIWinner ? 'Victory!' : isTie ? 'Tie Game' : 'Defeat'}
+           </h2>
+
+           <div className="w-full max-w-sm space-y-3">
+               {sorted.map((p, i) => (
+                   <div key={p.peerId} className={`flex justify-between items-center p-3 rounded-lg ${p.isMe ? 'bg-white/10' : 'bg-black/20'}`}>
+                       <div className="flex items-center gap-3">
+                           <span className="font-mono text-zinc-500">#{i+1}</span>
+                           <span className={p.isMe ? 'text-white font-bold' : 'text-zinc-400'}>{p.label}</span>
+                       </div>
+                       <span className={`font-mono font-bold ${p.color}`}>{p.score}</span>
+                   </div>
+               ))}
+           </div>
+
+           <button 
+             onClick={handleRematch}
+             className="mt-4 px-8 py-3 bg-white text-black font-bold rounded-full hover:scale-105 transition-transform"
+           >
+             {isHost ? 'Play Again' : 'Waiting for Host...'}
+           </button>
+        </div>
     );
   };
 
   return (
     <div className="absolute inset-0 z-50 bg-zinc-950 flex flex-col items-center justify-center">
-      {/* Header */}
-      <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-center bg-black/20 border-b border-white/5 z-20">
-         <div className="flex items-center gap-2">
-            <Zap size={18} className={theme.colors.accent} />
-            <span className="font-bold text-white tracking-wide">Online Duel</span>
-         </div>
-         <button onClick={onClose} className="text-zinc-500 hover:text-white transition-colors text-sm">
-            Leave Match
-         </button>
-      </div>
+        {/* Header */}
+        <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-center bg-black/20 border-b border-white/5 z-20">
+            <div className="flex items-center gap-2">
+                <Zap size={18} className={theme.colors.accent} />
+                <span className="font-bold text-white tracking-wide">Online Duel</span>
+            </div>
+            <button onClick={onClose} className="text-zinc-500 hover:text-white transition-colors text-sm">
+                Leave Match
+            </button>
+        </div>
 
-      {/* Main Content */}
-      <div className="w-full h-full flex flex-col items-center justify-center pt-16 pb-4">
-        {error ? (
-          <div className="text-center p-8 animate-slide-in">
-            <AlertCircle size={48} className="text-red-500 mx-auto mb-4" />
-            <p className="text-red-200 mb-4">{error}</p>
-            <button onClick={onClose} className="px-6 py-2 bg-white/10 rounded-lg hover:bg-white/20">Close</button>
-          </div>
-        ) : (
-          <>
-            {(phase === 'INIT' || phase === 'LOBBY' || phase === 'CONNECTING') && renderLobby()}
-            {(phase === 'COUNTDOWN' || phase === 'PLAYING') && renderGame()}
-            {phase === 'FINISHED' && renderResults()}
-          </>
-        )}
-      </div>
+        {/* Content */}
+        <div className="w-full h-full flex flex-col items-center justify-center pt-14 pb-4">
+             {error ? (
+                 <div className="text-center p-8 animate-slide-in">
+                    <AlertCircle size={48} className="text-red-500 mx-auto mb-4" />
+                    <p className="text-red-200 mb-4">{error}</p>
+                    <button onClick={onClose} className="px-6 py-2 bg-white/10 rounded-lg hover:bg-white/20">Close</button>
+                 </div>
+             ) : (
+                 <>
+                    {(phase === 'INIT' || phase === 'LOBBY' || phase === 'CONNECTING') && renderLobby()}
+                    {(phase === 'COUNTDOWN' || phase === 'PLAYING') && renderGame()}
+                    {phase === 'FINISHED' && renderResults()}
+                 </>
+             )}
+        </div>
     </div>
   );
 };
