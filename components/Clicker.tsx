@@ -34,7 +34,7 @@ const Clicker: React.FC<ClickerProps> = ({
 
   const handleInteraction = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     // Play sound
-    playSound(clickSound === 'default' ? 'click' : clickSound);
+    playSound(clickSound);
 
     // Haptic Feedback (Vibration)
     if (hapticsEnabled && typeof navigator !== 'undefined' && navigator.vibrate) {
