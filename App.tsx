@@ -618,7 +618,7 @@ const App: React.FC = () => {
                 )}
 
                 {/* Clicker Content */}
-                <div className="flex-1 relative flex items-center justify-center">
+                <div className="flex-1 relative flex flex-col items-center justify-center">
                     <Clicker 
                         onClick={handleManualClick} 
                         points={gameState.points}
@@ -633,7 +633,9 @@ const App: React.FC = () => {
 
                     {/* Toast Notification Positioned Below Clicker */}
                     {notification && (
-                      <Toast message={notification} onClose={() => setNotification(null)} theme={currentTheme} />
+                        <div className="mt-8 w-full max-w-sm px-4">
+                            <Toast message={notification} onClose={() => setNotification(null)} theme={currentTheme} />
+                        </div>
                     )}
                 </div>
             </div>

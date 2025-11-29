@@ -28,6 +28,7 @@ const AchievementPanel: React.FC<AchievementPanelProps> = ({ unlockedIds, theme 
     <div className={`
       w-full h-full overflow-y-auto transition-colors duration-300 p-4
     `}>
+      {/* Header removed from here as it is now part of the modal/panel shell */}
       
       <div className="grid grid-cols-1 gap-3">
         {sortedAchievements.map(ach => {
