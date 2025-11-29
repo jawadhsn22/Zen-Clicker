@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Peer, DataConnection } from 'peerjs';
 import { ThemeConfig } from '../types';
-import { Copy, Check, Globe, Loader2, Zap, Trophy, Link as LinkIcon, AlertCircle } from 'lucide-react';
+import { Copy, Check, Globe, Loader2, Zap, Trophy, Link as LinkIcon, AlertCircle, Wifi } from 'lucide-react';
 import { playSound } from '../utils/sound';
 
 interface OnlineDuelProps {
@@ -35,13 +35,6 @@ const PLAYER_COLORS = [
   'text-blue-500',   // P2
   'text-green-500',  // P3
   'text-yellow-500'  // P4
-];
-
-const BG_COLORS = [
-  'bg-red-500',
-  'bg-blue-500',
-  'bg-green-500',
-  'bg-yellow-500'
 ];
 
 const OnlineDuel: React.FC<OnlineDuelProps> = ({ initialRoomId, onClose, theme, onMatchComplete }) => {
@@ -193,9 +186,7 @@ const OnlineDuel: React.FC<OnlineDuelProps> = ({ initialRoomId, onClose, theme, 
   const handleHostDataReceived = (data: GameMessage, senderId: string) => {
     switch (data.type) {
       case 'START_CONFIRM':
-        // Wait for all? For simplicity, we assume if connection is open, we go.
-        // In a strict 4-player handshake, we'd wait for all. 
-        // For now, we trust the TCP-like nature of WebRTC DataChannels.
+        // Handshake received
         break;
       
       case 'CLICK':
@@ -258,7 +249,6 @@ const OnlineDuel: React.FC<OnlineDuelProps> = ({ initialRoomId, onClose, theme, 
     switch (data.type) {
       case 'LOBBY_UPDATE':
         // Payload is the full list of players from host
-        // We need to mark "isMe" correctly
         const lobbyList: PlayerState[] = data.payload;
         setPlayers(lobbyList.map(p => ({
           ...p,
@@ -316,7 +306,6 @@ const OnlineDuel: React.FC<OnlineDuelProps> = ({ initialRoomId, onClose, theme, 
 
   const startGameTimer = () => {
     // Only Host manages the timer logic that ends the game
-    // But both run a local countdown for UI display
     timerRef.current = window.setInterval(() => {
       setTimeLeft(prev => {
         if (prev <= 1) {
@@ -341,7 +330,6 @@ const OnlineDuel: React.FC<OnlineDuelProps> = ({ initialRoomId, onClose, theme, 
     onMatchComplete(winner.isMe);
   };
 
-  // For Guests, they just wait for GAME_OVER message, but we clear local interval
   useEffect(() => {
     if (phase === 'FINISHED') {
         cleanupTimers();
@@ -350,11 +338,12 @@ const OnlineDuel: React.FC<OnlineDuelProps> = ({ initialRoomId, onClose, theme, 
   }, [phase, isHost]);
 
   const handleHostStart = () => {
-    if (isHost && connectionsRef.current.length > 0) {
+    // Strict check: Must be host, have players, and connection must be open (Host is always connected locally)
+    if (isHost && connectionsRef.current.length > 0 && isConnected) {
       setWaitingForConfirm(true);
       broadcastToGuests({ type: 'START_REQ' });
       
-      // Start locally after short delay (simulating handshake roundtrip)
+      // Start locally after delay
       setTimeout(() => {
         setWaitingForConfirm(false);
         startCountdown();
@@ -391,7 +380,6 @@ const OnlineDuel: React.FC<OnlineDuelProps> = ({ initialRoomId, onClose, theme, 
         if (hostConnRef.current?.open) {
             hostConnRef.current.send({ type: 'REMATCH' });
         }
-        // Wait for host to actually reset
     }
   };
 
@@ -434,8 +422,17 @@ const OnlineDuel: React.FC<OnlineDuelProps> = ({ initialRoomId, onClose, theme, 
   // --- Render ---
 
   const renderLobby = () => (
-    <div className="flex flex-col items-center gap-6 animate-slide-in w-full max-w-md">
-       <div className={`relative p-4 rounded-full bg-white/5 ${theme.colors.accent}`}>
+    <div className="flex flex-col items-center gap-6 animate-slide-in w-full max-w-md relative">
+       {/* Connection Status Indicator */}
+       <div className="absolute top-0 right-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/40 border border-white/5 backdrop-blur-md z-10">
+          <Wifi size={12} className={isConnected ? "text-emerald-500" : "text-red-500"} />
+          <div className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
+          <span className="text-[10px] text-zinc-400 font-mono uppercase tracking-wider">
+            {isConnected ? 'Signal Stable' : 'Connecting...'}
+          </span>
+       </div>
+
+       <div className={`relative p-4 rounded-full bg-white/5 ${theme.colors.accent} mt-8`}>
          <Globe size={48} className={isHost && players.length < 2 ? "animate-pulse" : ""} />
        </div>
 
@@ -487,7 +484,7 @@ const OnlineDuel: React.FC<OnlineDuelProps> = ({ initialRoomId, onClose, theme, 
             
             <button 
                onClick={handleHostStart}
-               disabled={players.length < 2 || waitingForConfirm}
+               disabled={players.length < 2 || waitingForConfirm || !isConnected}
                className={`
                   w-full mt-6 py-4 rounded-xl font-bold text-lg uppercase tracking-widest
                   bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500
@@ -511,9 +508,6 @@ const OnlineDuel: React.FC<OnlineDuelProps> = ({ initialRoomId, onClose, theme, 
   );
 
   const renderGame = () => {
-    // Dynamic grid based on player count
-    // 2 players: 2 cols
-    // 3-4 players: 2x2 grid
     const gridClass = players.length <= 2 ? 'grid-rows-2 md:grid-rows-1 md:grid-cols-2' : 'grid-cols-2 grid-rows-2';
 
     return (
@@ -556,7 +550,6 @@ const OnlineDuel: React.FC<OnlineDuelProps> = ({ initialRoomId, onClose, theme, 
   };
 
   const renderResults = () => {
-    // Sort by score
     const sorted = [...players].sort((a,b) => b.score - a.score);
     const winner = sorted[0];
     const amIWinner = winner.isMe;
