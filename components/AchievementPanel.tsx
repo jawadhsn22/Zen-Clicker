@@ -27,39 +27,39 @@ const AchievementPanel: React.FC<AchievementPanelProps> = ({ unlockedIds, theme 
   return (
     <div className={`
       ${theme.colors.panelBg} border-t ${theme.colors.border} 
-      p-6 w-full h-full overflow-y-auto transition-colors duration-300
+      p-4 w-full h-full overflow-y-auto transition-colors duration-300
     `}>
-      <div className="flex items-center justify-between mb-4 sticky top-0 z-10 pb-2 border-b border-white/5 bg-inherit backdrop-blur-md">
+      <div className="flex items-center justify-between mb-3 sticky top-0 z-10 pb-2 border-b border-white/5 bg-inherit backdrop-blur-md">
         <h3 className={`text-sm font-semibold uppercase tracking-wider ${theme.colors.text}`}>Achievements</h3>
         <span className={`text-xs font-mono ${theme.colors.textDim}`}>
           {unlockedSet.size} / {ACHIEVEMENTS.length}
         </span>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
         {sortedAchievements.map(ach => {
             const isUnlocked = unlockedSet.has(ach.id);
             return (
                 <div 
                     key={ach.id} 
                     className={`
-                        flex items-center gap-3 p-3 rounded-lg border transition-all
+                        flex items-center gap-3 p-2.5 rounded-lg border transition-all
                         ${isUnlocked 
                             ? `bg-white/5 ${theme.colors.border}` 
-                            : `bg-black/20 border-transparent opacity-50`}
+                            : `bg-black/20 border-transparent opacity-40`}
                     `}
                 >
                     <div className={`
-                        p-2 rounded-full shrink-0
+                        p-1.5 rounded-full shrink-0
                         ${isUnlocked ? 'bg-white/5' : 'bg-black/20'}
                     `}>
                         {IconComponent(ach.icon, isUnlocked)}
                     </div>
                     <div className="min-w-0">
-                        <div className={`text-sm font-medium truncate ${isUnlocked ? theme.colors.text : theme.colors.textDim}`}>
+                        <div className={`text-xs font-medium truncate ${isUnlocked ? theme.colors.text : theme.colors.textDim}`}>
                             {ach.name}
                         </div>
-                        <div className={`text-[10px] leading-tight mt-0.5 truncate ${theme.colors.textDim}`}>
+                        <div className={`text-[9px] leading-tight mt-0.5 truncate ${theme.colors.textDim}`}>
                             {ach.description}
                         </div>
                     </div>

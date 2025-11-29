@@ -31,8 +31,8 @@ const ChallengeWidget: React.FC<ChallengeWidgetProps> = ({ challenge, currentVal
       /* Mobile: Top Center */
       top-2 left-1/2 -translate-x-1/2 w-[95%] max-w-[400px]
       
-      /* Desktop: Top Left (Under Settings Buttons) */
-      md:top-20 md:left-4 md:translate-x-0 md:w-80
+      /* Desktop: Top Left (Aligned with left edge) */
+      md:top-24 md:left-6 md:translate-x-0 md:w-72
     `}>
       <div className="flex items-center p-3 gap-3">
         {/* Icon / Progress Ring Placeholder */}

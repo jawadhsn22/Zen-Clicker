@@ -17,17 +17,17 @@ const Toast: React.FC<ToastProps> = ({ message, onClose, theme }) => {
   }, [onClose]);
 
   return (
-    <div className="fixed bottom-24 md:bottom-6 left-1/2 -translate-x-1/2 z-[60] animate-slide-in">
-      <div className={`bg-zinc-800 border ${theme.colors.border} ${theme.colors.text} px-6 py-4 rounded-full shadow-2xl flex items-center gap-4 min-w-[300px]`}>
-        <div className={`p-2 rounded-full bg-white/5`}>
-            <Trophy size={20} className={theme.colors.accent} />
+    <div className="absolute bottom-12 left-1/2 -translate-x-1/2 z-[40] animate-slide-in w-full max-w-sm px-4">
+      <div className={`bg-zinc-900/90 backdrop-blur-md border ${theme.colors.border} ${theme.colors.text} px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-4`}>
+        <div className={`p-2 rounded-full bg-white/5 shrink-0`}>
+            <Trophy size={18} className={theme.colors.accent} />
         </div>
-        <div className="flex-1">
-            <div className={`text-xs font-bold uppercase tracking-wider ${theme.colors.accent}`}>Achievement Unlocked</div>
-            <div className="font-medium">{message}</div>
+        <div className="flex-1 min-w-0">
+            <div className={`text-[10px] font-bold uppercase tracking-wider ${theme.colors.accent} mb-0.5`}>Achievement Unlocked</div>
+            <div className="font-medium text-sm truncate">{message}</div>
         </div>
         <button onClick={onClose} className={`${theme.colors.textDim} hover:text-white transition-colors`}>
-            <X size={18} />
+            <X size={16} />
         </button>
       </div>
     </div>

@@ -528,7 +528,7 @@ const App: React.FC = () => {
                     </div>
                 )}
 
-                {/* Challenge Widget - Now positioned absolutely via its component classes */}
+                {/* Challenge Widget */}
                 {activeChallenge && (
                      <ChallengeWidget challenge={activeChallenge} currentValue={activeChallenge.targetType === 'POINTS' ? gameState.points : gameState.totalClicks} theme={currentTheme} />
                 )}
@@ -546,6 +546,11 @@ const App: React.FC = () => {
                         clickSound={gameState.settings.clickSound}
                         hapticsEnabled={gameState.settings.hapticsEnabled}
                     />
+
+                    {/* Toast Notification Positioned Below Clicker */}
+                    {notification && (
+                      <Toast message={notification} onClose={() => setNotification(null)} theme={currentTheme} />
+                    )}
                 </div>
             </div>
 
@@ -584,7 +589,7 @@ const App: React.FC = () => {
         </div>
 
         {/* BOTTOM SECTION: Achievements Footer (Desktop Only) */}
-        <div className="hidden md:block h-56 w-full z-30 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
+        <div className="hidden md:block h-60 w-full z-30 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
             <AchievementPanel unlockedIds={gameState.unlockedAchievements} theme={currentTheme} />
         </div>
 
@@ -616,11 +621,6 @@ const App: React.FC = () => {
             <span className="text-[10px] font-medium uppercase tracking-wide">Menu</span>
         </button>
       </nav>
-
-      {/* Global Toast Notification */}
-      {notification && (
-        <Toast message={notification} onClose={() => setNotification(null)} theme={currentTheme} />
-      )}
 
       {/* Prestige Confirmation Modal */}
       {showPrestigeModal && (
