@@ -442,13 +442,13 @@ const App: React.FC = () => {
   );
 
   return (
-    <div className={`flex flex-col md:flex-row h-screen w-full ${currentTheme.colors.bg} ${currentTheme.colors.text} overflow-hidden transition-colors duration-500`}>
+    <div className={`flex flex-col h-screen w-full ${currentTheme.colors.bg} ${currentTheme.colors.text} overflow-hidden transition-colors duration-500`}>
       
       {/* Auto Save Indicator */}
       <div className={`
         fixed z-50 transition-all duration-500 pointer-events-none flex items-center gap-2
         ${isSaving ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}
-        bottom-20 right-4 md:bottom-4 md:right-4 
+        bottom-20 right-4 md:bottom-24 md:right-4 
       `}>
           <Save size={14} className={`${currentTheme.colors.accent} animate-spin`} />
           <span className={`text-[10px] font-mono uppercase tracking-widest ${currentTheme.colors.textDim}`}>Saving...</span>
@@ -482,105 +482,110 @@ const App: React.FC = () => {
       </div>
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col md:flex-row overflow-hidden pt-14 md:pt-0 pb-16 md:pb-0">
+      <main className="flex-1 flex flex-col overflow-hidden pt-14 md:pt-0 pb-16 md:pb-0">
 
-        {/* --- LEFT PANEL / CLICKER TAB --- */}
-        <div className={`
-            flex-1 relative flex flex-col h-full transition-opacity duration-300
-            ${mobileTab === 'clicker' ? 'flex' : 'hidden md:flex'}
-        `}>
-             {/* Desktop Tools */}
-            <div className="hidden md:flex absolute top-4 left-4 z-40 gap-2">
-                <button 
-                    onClick={() => setShowDesktopSettings(!showDesktopSettings)}
-                    className={`p-2 rounded-lg bg-white/5 ${currentTheme.colors.accentHover} border border-transparent transition-all hover:bg-white/10`}
-                >
-                    <Settings size={20} />
-                </button>
-                <button 
-                    onClick={() => setShowMultiplayer(true)}
-                    className={`p-2 rounded-lg bg-white/5 ${currentTheme.colors.accentHover} border border-transparent transition-all hover:bg-white/10`}
-                >
-                    <Users size={20} />
-                </button>
-            </div>
-
-            {/* Prestige Button (Desktop) */}
-            {gameState.points >= PRESTIGE_THRESHOLD && (
-                <div className="hidden md:block absolute top-4 right-4 z-40 animate-slide-in">
+        {/* TOP SECTION: Split into Left (Clicker) and Right (Shop) */}
+        <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+            
+            {/* --- LEFT PANEL / CLICKER TAB --- */}
+            <div className={`
+                flex-1 relative flex flex-col h-full transition-opacity duration-300
+                ${mobileTab === 'clicker' ? 'flex' : 'hidden md:flex'}
+            `}>
+                {/* Desktop Tools */}
+                <div className="hidden md:flex absolute top-4 left-4 z-40 gap-2">
                     <button 
-                        onClick={() => setShowPrestigeModal(true)}
-                        className="flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-lg hover:scale-105 transition-all"
+                        onClick={() => setShowDesktopSettings(!showDesktopSettings)}
+                        className={`p-2 rounded-lg bg-white/5 ${currentTheme.colors.accentHover} border border-transparent transition-all hover:bg-white/10`}
                     >
-                        <Crown size={16} />
-                        <span className="font-bold text-sm tracking-wide">PRESTIGE</span>
+                        <Settings size={20} />
+                    </button>
+                    <button 
+                        onClick={() => setShowMultiplayer(true)}
+                        className={`p-2 rounded-lg bg-white/5 ${currentTheme.colors.accentHover} border border-transparent transition-all hover:bg-white/10`}
+                    >
+                        <Users size={20} />
                     </button>
                 </div>
-            )}
 
-            {/* Settings Dropdown (Desktop) */}
-            {showDesktopSettings && (
-                <div className={`hidden md:block absolute top-16 left-4 z-50 w-80 ${currentTheme.colors.panelBg} border ${currentTheme.colors.border} rounded-2xl p-6 shadow-2xl backdrop-blur-xl animate-slide-in`}>
-                   {renderSettingsContent()}
-                </div>
-            )}
+                {/* Prestige Button (Desktop) */}
+                {gameState.points >= PRESTIGE_THRESHOLD && (
+                    <div className="hidden md:block absolute top-4 right-4 z-40 animate-slide-in">
+                        <button 
+                            onClick={() => setShowPrestigeModal(true)}
+                            className="flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-lg hover:scale-105 transition-all"
+                        >
+                            <Crown size={16} />
+                            <span className="font-bold text-sm tracking-wide">PRESTIGE</span>
+                        </button>
+                    </div>
+                )}
 
-            {/* Challenge Widget */}
-            {activeChallenge && (
-                <div className="relative w-full">
+                {/* Settings Dropdown (Desktop) */}
+                {showDesktopSettings && (
+                    <div className={`hidden md:block absolute top-16 left-4 z-50 w-80 ${currentTheme.colors.panelBg} border ${currentTheme.colors.border} rounded-2xl p-6 shadow-2xl backdrop-blur-xl animate-slide-in`}>
+                    {renderSettingsContent()}
+                    </div>
+                )}
+
+                {/* Challenge Widget - Now positioned absolutely via its component classes */}
+                {activeChallenge && (
                      <ChallengeWidget challenge={activeChallenge} currentValue={activeChallenge.targetType === 'POINTS' ? gameState.points : gameState.totalClicks} theme={currentTheme} />
-                </div>
-            )}
+                )}
 
-            {/* Clicker Content */}
-            <div className="flex-1 relative">
-                <Clicker 
-                    onClick={handleManualClick} 
-                    points={gameState.points}
-                    clickPower={gameState.clickPower}
-                    autoPointsPerSecond={gameState.autoPointsPerSecond}
+                {/* Clicker Content */}
+                <div className="flex-1 relative">
+                    <Clicker 
+                        onClick={handleManualClick} 
+                        points={gameState.points}
+                        clickPower={gameState.clickPower}
+                        autoPointsPerSecond={gameState.autoPointsPerSecond}
+                        theme={currentTheme}
+                        prestigeMultiplier={prestigeMultiplier}
+                        prestigeLevel={gameState.prestigeLevel}
+                        clickSound={gameState.settings.clickSound}
+                        hapticsEnabled={gameState.settings.hapticsEnabled}
+                    />
+                </div>
+            </div>
+
+            {/* --- RIGHT PANEL / UPGRADES TAB --- */}
+            <div className={`
+                md:w-[450px] flex-col z-20 shadow-2xl bg-black/20 backdrop-blur-xl border-l border-white/5
+                ${mobileTab === 'upgrades' ? 'flex flex-1 w-full' : 'hidden md:flex h-full'}
+            `}>
+                <UpgradeShop 
+                    points={gameState.points} 
+                    purchased={gameState.upgrades} 
+                    onBuy={handleBuyUpgrade} 
                     theme={currentTheme}
                     prestigeMultiplier={prestigeMultiplier}
-                    prestigeLevel={gameState.prestigeLevel}
-                    clickSound={gameState.settings.clickSound}
-                    hapticsEnabled={gameState.settings.hapticsEnabled}
+                    difficulty={gameState.difficulty}
                 />
             </div>
-
-             {/* Achievement Panel (Desktop) */}
-            <div className="hidden md:block h-1/3 border-t border-white/5">
-                <AchievementPanel unlockedIds={gameState.unlockedAchievements} theme={currentTheme} />
+            
+            {/* --- MOBILE SETTINGS TAB --- */}
+            <div className={`
+                flex-1 flex flex-col p-6 overflow-y-auto bg-black/40 backdrop-blur-md
+                ${mobileTab === 'settings' ? 'flex' : 'hidden'}
+            `}>
+                <h2 className="text-2xl font-bold mb-8">Menu</h2>
+                {renderSettingsContent()}
+                
+                {/* Mobile Achievements shown in settings */}
+                <div className="mt-8 pt-8 border-t border-white/10">
+                    <AchievementPanel unlockedIds={gameState.unlockedAchievements} theme={currentTheme} />
+                </div>
+                
+                <div className="text-center mt-12 mb-8 text-xs text-zinc-600 font-mono">
+                    ZenClicker v1.2.0
+                </div>
             </div>
         </div>
 
-        {/* --- RIGHT PANEL / UPGRADES TAB --- */}
-        <div className={`
-             md:w-[450px] flex-col z-20 shadow-2xl bg-black/20 backdrop-blur-xl border-l border-white/5
-             ${mobileTab === 'upgrades' ? 'flex flex-1 w-full' : 'hidden md:flex h-full'}
-        `}>
-             <UpgradeShop 
-                points={gameState.points} 
-                purchased={gameState.upgrades} 
-                onBuy={handleBuyUpgrade} 
-                theme={currentTheme}
-                prestigeMultiplier={prestigeMultiplier}
-                difficulty={gameState.difficulty}
-             />
-        </div>
-
-        {/* --- MOBILE SETTINGS TAB --- */}
-        <div className={`
-            flex-1 flex flex-col p-6 overflow-y-auto bg-black/40 backdrop-blur-md
-            ${mobileTab === 'settings' ? 'flex' : 'hidden'}
-        `}>
-            <h2 className="text-2xl font-bold mb-8">Menu</h2>
-            {renderSettingsContent()}
-            <div className="mt-8 pt-8 border-t border-white/10">
-                 <AchievementPanel unlockedIds={gameState.unlockedAchievements} theme={currentTheme} />
-            </div>
-            <div className="text-center mt-12 mb-8 text-xs text-zinc-600 font-mono">
-                ZenClicker v1.2.0
-            </div>
+        {/* BOTTOM SECTION: Achievements Footer (Desktop Only) */}
+        <div className="hidden md:block h-56 w-full z-30 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
+            <AchievementPanel unlockedIds={gameState.unlockedAchievements} theme={currentTheme} />
         </div>
 
       </main>

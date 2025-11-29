@@ -25,11 +25,14 @@ const ChallengeWidget: React.FC<ChallengeWidgetProps> = ({ challenge, currentVal
 
   return (
     <div className={`
-      absolute top-2 left-1/2 -translate-x-1/2 
-      w-[95%] max-w-[400px] md:top-16 md:w-96
-      z-20 rounded-2xl border shadow-xl backdrop-blur-xl
-      animate-slide-in overflow-hidden
+      absolute z-20 rounded-2xl border shadow-xl backdrop-blur-xl animate-slide-in overflow-hidden
       ${theme.colors.panelBg} ${theme.colors.border}
+      
+      /* Mobile: Top Center */
+      top-2 left-1/2 -translate-x-1/2 w-[95%] max-w-[400px]
+      
+      /* Desktop: Top Left (Under Settings Buttons) */
+      md:top-20 md:left-4 md:translate-x-0 md:w-80
     `}>
       <div className="flex items-center p-3 gap-3">
         {/* Icon / Progress Ring Placeholder */}
