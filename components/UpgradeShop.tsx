@@ -41,7 +41,8 @@ const UpgradeShop: React.FC<UpgradeShopProps> = ({ points, purchased, onBuy, the
         </div>
       </div>
       
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+      {/* Increased padding-bottom from pb-24 to pb-48 to aggressively fix mobile scrolling overlap issues */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-48 md:pb-4">
         {UPGRADES.map(upgrade => {
           const cost = getCost(upgrade);
           const count = purchased[upgrade.id] || 0;
