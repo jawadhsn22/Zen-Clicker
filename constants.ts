@@ -1,4 +1,3 @@
-
 import { Upgrade, UpgradeType, Achievement, GameState, ThemeConfig, Difficulty } from './types';
 
 export const INITIAL_STATE: GameState = {
@@ -37,7 +36,7 @@ export const THEMES: Record<string, ThemeConfig> = {
     colors: {
       bg: 'bg-zinc-950',
       text: 'text-zinc-100',
-      textDim: 'text-zinc-500',
+      textDim: 'text-zinc-400', // Improved contrast
       accent: 'text-violet-500',
       accentHover: 'hover:border-violet-500/50',
       accentGlow: 'shadow-[0_0_60px_-15px_rgba(124,58,237,0.3)]',
@@ -52,7 +51,7 @@ export const THEMES: Record<string, ThemeConfig> = {
     colors: {
       bg: 'bg-slate-950',
       text: 'text-cyan-50',
-      textDim: 'text-slate-500',
+      textDim: 'text-slate-400', // Improved contrast
       accent: 'text-cyan-400',
       accentHover: 'hover:border-cyan-400/50',
       accentGlow: 'shadow-[0_0_60px_-15px_rgba(34,211,238,0.4)]',
@@ -67,7 +66,7 @@ export const THEMES: Record<string, ThemeConfig> = {
     colors: {
       bg: 'bg-stone-950',
       text: 'text-stone-100',
-      textDim: 'text-stone-500',
+      textDim: 'text-stone-400', // Improved contrast
       accent: 'text-emerald-500',
       accentHover: 'hover:border-emerald-500/50',
       accentGlow: 'shadow-[0_0_60px_-15px_rgba(16,185,129,0.3)]',

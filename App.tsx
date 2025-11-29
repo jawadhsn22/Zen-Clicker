@@ -449,7 +449,7 @@ const App: React.FC = () => {
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col md:flex-row overflow-hidden pt-14 md:pt-0 pb-16 md:pb-0">
+      <main className="flex-1 flex flex-col md:flex-row overflow-hidden pt-14 md:pt-0 pb-16 md:pb-0">
 
         {/* --- LEFT PANEL / CLICKER TAB --- */}
         <div className={`
@@ -549,10 +549,10 @@ const App: React.FC = () => {
             </div>
         </div>
 
-      </div>
+      </main>
 
       {/* Mobile Bottom Navigation */}
-      <div className="md:hidden absolute bottom-0 left-0 right-0 h-16 bg-black/80 backdrop-blur-lg border-t border-white/5 flex justify-around items-center z-50 pb-safe">
+      <nav className="md:hidden absolute bottom-0 left-0 right-0 h-16 bg-black/80 backdrop-blur-lg border-t border-white/5 flex justify-around items-center z-50 pb-safe">
         <button 
             onClick={() => setMobileTab('clicker')}
             className={`flex flex-col items-center gap-1.5 p-2 w-16 transition-colors ${mobileTab === 'clicker' ? currentTheme.colors.accent : 'text-zinc-500'}`}
@@ -576,7 +576,7 @@ const App: React.FC = () => {
             <Menu size={24} strokeWidth={mobileTab === 'settings' ? 2.5 : 2} />
             <span className="text-[10px] font-medium uppercase tracking-wide">Menu</span>
         </button>
-      </div>
+      </nav>
 
       {/* Global Toast Notification */}
       {notification && (
