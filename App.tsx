@@ -8,7 +8,7 @@ import Toast from './components/Toast';
 import ChallengeWidget from './components/ChallengeWidget';
 import MultiplayerGame from './components/MultiplayerGame';
 import PrestigeSuccess from './components/PrestigeSuccess';
-import { Crown, Settings, Users, Volume2, VolumeX, Moon, MousePointer2, ShoppingBag, Menu, Sparkles, Save, Vibrate, Trophy, X } from 'lucide-react';
+import { Crown, Settings, Users, Volume2, VolumeX, Moon, MousePointer2, ShoppingBag, Menu, Sparkles, Save, Vibrate, Trophy, X, Trash2, AlertTriangle } from 'lucide-react';
 import { playSound, setVolumes } from './utils/sound';
 
 const App: React.FC = () => {
@@ -39,6 +39,7 @@ const App: React.FC = () => {
   const [showPrestigeModal, setShowPrestigeModal] = useState(false);
   const [showMultiplayer, setShowMultiplayer] = useState(false);
   const [showPrestigeSuccess, setShowPrestigeSuccess] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [inviteRoomId, setInviteRoomId] = useState<string | null>(null);
   
   // Desktop Panel State (Only one active at a time)
@@ -288,6 +289,14 @@ const App: React.FC = () => {
     setShowPrestigeSuccess(false);
   };
 
+  const handleResetGame = () => {
+    localStorage.removeItem('zenClickerSave');
+    setGameState(INITIAL_STATE);
+    setShowResetConfirm(false);
+    setActiveDesktopPanel('none');
+    window.location.reload(); // Reload to ensure clean slate
+  };
+
   const toggleTheme = (themeId: string) => setGameState(prev => ({ ...prev, theme: themeId }));
   const setDifficulty = (diff: Difficulty) => setGameState(prev => ({ ...prev, difficulty: diff }));
   const handleVolumeChange = (type: 'sfx' | 'music', val: number) => {
@@ -450,6 +459,18 @@ const App: React.FC = () => {
                 </div>
                 </div>
         </div>
+
+        {/* Danger Zone */}
+        <div className="pt-6 border-t border-white/5">
+            <h4 className="text-xs font-bold uppercase tracking-wider mb-3 text-red-400">Danger Zone</h4>
+            <button 
+                onClick={() => setShowResetConfirm(true)}
+                className="w-full py-3 flex items-center justify-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 transition-colors"
+            >
+                <Trash2 size={16} />
+                <span className="text-xs font-medium uppercase tracking-wide">Reset Game Progress</span>
+            </button>
+        </div>
     </div>
   );
 
@@ -478,6 +499,33 @@ const App: React.FC = () => {
                </div>
             </div>
          </div>
+      )}
+
+      {/* Reset Confirmation Modal */}
+      {showResetConfirm && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/90 animate-slide-in">
+            <div className={`max-w-xs w-full ${currentTheme.colors.panelBg} border border-red-500/30 rounded-2xl p-6 text-center shadow-2xl relative`}>
+                <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-4 text-red-500">
+                    <AlertTriangle size={24} />
+                </div>
+                <h3 className="text-lg font-bold text-white mb-2">Are you sure?</h3>
+                <p className="text-sm text-zinc-400 mb-6">This will delete all progress, including prestige levels and achievements. This action cannot be undone.</p>
+                <div className="flex flex-col gap-3">
+                    <button 
+                        onClick={handleResetGame}
+                        className="w-full py-2.5 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg transition-colors"
+                    >
+                        Yes, Delete Everything
+                    </button>
+                    <button 
+                        onClick={() => setShowResetConfirm(false)}
+                        className="w-full py-2.5 text-zinc-400 hover:text-white transition-colors"
+                    >
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
       )}
 
       {/* Mobile Top Header */}

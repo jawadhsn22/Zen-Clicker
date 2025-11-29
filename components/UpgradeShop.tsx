@@ -33,8 +33,6 @@ const UpgradeShop: React.FC<UpgradeShopProps> = ({ points, purchased, onBuy, the
 
   return (
     <div className={`h-full flex flex-col transition-colors duration-300`}>
-      {/* Header removed from here as it is now part of the modal/panel shell */}
-      
       {/* Increased padding-bottom for mobile */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-48 md:pb-4">
         {UPGRADES.map(upgrade => {
