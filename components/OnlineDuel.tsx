@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Peer } from 'peerjs';
 import { ThemeConfig } from '../types';
-import { Copy, Check, Globe, Loader2, Zap, Trophy, Link as LinkIcon, AlertCircle } from 'lucide-react';
+import { Copy, Check, Globe, Loader2, Zap, Trophy, Link as LinkIcon, AlertCircle, Circle } from 'lucide-react';
 import { playSound } from '../utils/sound';
 
 interface OnlineDuelProps {
@@ -38,6 +38,7 @@ const OnlineDuel: React.FC<OnlineDuelProps> = ({ initialRoomId, onClose, theme, 
   const peerRef = useRef<Peer | null>(null);
   const timerRef = useRef<number | null>(null);
   const syncIntervalRef = useRef<number | null>(null);
+  const handshakeTimeoutRef = useRef<number | null>(null);
 
   // Initialize Peer
   useEffect(() => {
@@ -79,6 +80,7 @@ const OnlineDuel: React.FC<OnlineDuelProps> = ({ initialRoomId, onClose, theme, 
       peer.destroy();
       if (timerRef.current) clearInterval(timerRef.current);
       if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
+      if (handshakeTimeoutRef.current) clearTimeout(handshakeTimeoutRef.current);
     };
   }, []);
 
@@ -133,6 +135,7 @@ const OnlineDuel: React.FC<OnlineDuelProps> = ({ initialRoomId, onClose, theme, 
         break;
       case 'START_CONFIRM':
         // Host receives confirmation from guest.
+        if (handshakeTimeoutRef.current) clearTimeout(handshakeTimeoutRef.current);
         setWaitingForConfirm(false);
         startCountdown();
         break;
@@ -209,6 +212,14 @@ const OnlineDuel: React.FC<OnlineDuelProps> = ({ initialRoomId, onClose, theme, 
     if (isConnected && conn && conn.open) {
       setWaitingForConfirm(true);
       conn.send({ type: 'START_REQ' });
+
+      // Safety timeout: If guest doesn't reply in 5s, reset state
+      if (handshakeTimeoutRef.current) clearTimeout(handshakeTimeoutRef.current);
+      handshakeTimeoutRef.current = window.setTimeout(() => {
+        setWaitingForConfirm(false);
+        setError("Handshake timed out. Try again.");
+      }, 5000);
+
     } else {
         setError("Connection unstable. Please wait.");
     }
@@ -293,8 +304,13 @@ const OnlineDuel: React.FC<OnlineDuelProps> = ({ initialRoomId, onClose, theme, 
 
     return (
     <div className="flex flex-col items-center gap-6 animate-slide-in w-full max-w-md">
-      <div className={`p-4 rounded-full bg-white/5 ${theme.colors.accent}`}>
+      <div className={`relative p-4 rounded-full bg-white/5 ${theme.colors.accent}`}>
         <Globe size={48} className={!isConnected && conn ? "animate-pulse" : ""} />
+        {/* Status Dot */}
+        <div className={`
+            absolute bottom-0 right-0 w-4 h-4 rounded-full border-2 border-zinc-900 
+            ${isConnected ? 'bg-green-500' : conn ? 'bg-yellow-500' : 'bg-red-500'}
+        `} />
       </div>
       
       <div className="text-center">
