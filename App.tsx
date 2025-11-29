@@ -681,8 +681,10 @@ const App: React.FC = () => {
 
                     {/* Toast Notification Positioned Below Clicker */}
                     {notification && (
-                        <div className="mt-8 w-full max-w-sm px-4">
-                            <Toast message={notification} onClose={() => setNotification(null)} theme={currentTheme} />
+                        <div className="absolute bottom-4 left-0 right-0 px-4 md:relative md:bottom-auto md:mt-8 md:w-full md:max-w-sm md:px-0 z-50 flex justify-center pointer-events-none">
+                            <div className="w-full max-w-sm pointer-events-auto">
+                                <Toast message={notification} onClose={() => setNotification(null)} theme={currentTheme} />
+                            </div>
                         </div>
                     )}
                 </div>
