@@ -8,7 +8,7 @@ import Toast from './components/Toast';
 import ChallengeWidget from './components/ChallengeWidget';
 import MultiplayerGame from './components/MultiplayerGame';
 import PrestigeSuccess from './components/PrestigeSuccess';
-import { Crown, Settings, Users, Volume2, VolumeX, Moon, MousePointer2, ShoppingBag, Menu, Sparkles, Save, Vibrate } from 'lucide-react';
+import { Crown, Settings, Users, Volume2, VolumeX, Moon, MousePointer2, ShoppingBag, Menu, Sparkles, Save, Vibrate, Trophy, X } from 'lucide-react';
 import { playSound, setVolumes } from './utils/sound';
 
 const App: React.FC = () => {
@@ -37,11 +37,13 @@ const App: React.FC = () => {
   const [notification, setNotification] = useState<string | null>(null);
   const [activeChallenge, setActiveChallenge] = useState<Challenge | null>(null);
   const [showPrestigeModal, setShowPrestigeModal] = useState(false);
-  const [showDesktopSettings, setShowDesktopSettings] = useState(false);
   const [showMultiplayer, setShowMultiplayer] = useState(false);
   const [showPrestigeSuccess, setShowPrestigeSuccess] = useState(false);
   const [inviteRoomId, setInviteRoomId] = useState<string | null>(null);
   
+  // Desktop Panel State (Only one active at a time)
+  const [activeDesktopPanel, setActiveDesktopPanel] = useState<'none' | 'settings' | 'upgrades' | 'achievements'>('none');
+
   // Mobile UI State
   const [mobileTab, setMobileTab] = useState<'clicker' | 'upgrades' | 'settings'>('clicker');
   
@@ -261,8 +263,6 @@ const App: React.FC = () => {
   };
 
   const handlePrestigeComplete = () => {
-    // Explicitly construct the new state to prevent any reference issues with INITIAL_STATE
-    // and to ensure a clean reset while preserving critical player data.
     const newState: GameState = {
         points: 0,
         clickPower: 1,
@@ -283,8 +283,6 @@ const App: React.FC = () => {
     setGameState(newState);
     
     // CRITICAL: Force synchronous save to localStorage immediately.
-    // This prevents data loss if the user refreshes or closes the browser 
-    // right after the prestige animation finishes but before the next auto-save.
     localStorage.setItem('zenClickerSave', JSON.stringify(newState));
     
     setShowPrestigeSuccess(false);
@@ -303,7 +301,6 @@ const App: React.FC = () => {
       ...prev,
       settings: { ...prev.settings, clickSound: variant }
     }));
-    // Preview sound
     setTimeout(() => playSound(variant as any), 100);
   };
   
@@ -311,7 +308,7 @@ const App: React.FC = () => {
     setGameState(prev => {
       const newVal = !prev.settings.hapticsEnabled;
       if (newVal && typeof navigator !== 'undefined' && navigator.vibrate) {
-        navigator.vibrate(10); // Feedback
+        navigator.vibrate(10);
       }
       return {
         ...prev,
@@ -333,6 +330,10 @@ const App: React.FC = () => {
       setInviteRoomId(null); 
   };
 
+  const toggleDesktopPanel = (panel: 'settings' | 'upgrades' | 'achievements') => {
+      setActiveDesktopPanel(prev => prev === panel ? 'none' : panel);
+  };
+
   if (showMultiplayer) {
     return <MultiplayerGame onClose={closeMultiplayer} theme={currentTheme} initialRoomId={inviteRoomId} onMatchComplete={handleMultiplayerComplete} />;
   }
@@ -341,8 +342,7 @@ const App: React.FC = () => {
     return <PrestigeSuccess level={gameState.prestigeLevel + 1} newMultiplier={1 + (gameState.prestigeLevel + 1) * PRESTIGE_MULTIPLIER_PER_LEVEL} onComplete={handlePrestigeComplete} />;
   }
 
-  // --- Render Helpers ---
-
+  // --- Render Settings Content ---
   const renderSettingsContent = () => (
     <div className="space-y-8 animate-slide-in">
         <div>
@@ -409,7 +409,6 @@ const App: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Haptics Toggle */}
                 <div className="flex items-center justify-between">
                    <div className="flex items-center gap-4">
                       <Vibrate size={20} className={currentTheme.colors.textDim} />
@@ -429,7 +428,6 @@ const App: React.FC = () => {
                    </button>
                 </div>
                 
-                {/* Click Sound Selector */}
                 <div>
                    <div className="text-[10px] uppercase font-medium tracking-wider mb-3 mt-4 text-zinc-500">Click Effect</div>
                    <div className="grid grid-cols-2 gap-2">
@@ -452,14 +450,6 @@ const App: React.FC = () => {
                 </div>
                 </div>
         </div>
-
-        <button 
-            onClick={() => setShowMultiplayer(true)}
-            className={`w-full py-4 flex items-center justify-center gap-2 rounded-xl border border-white/10 hover:bg-white/5 transition-colors`}
-        >
-            <Users size={18} className={currentTheme.colors.accent} />
-            <span className="text-sm font-medium">Multiplayer Battle</span>
-        </button>
     </div>
   );
 
@@ -470,7 +460,7 @@ const App: React.FC = () => {
       <div className={`
         fixed z-50 transition-all duration-500 pointer-events-none flex items-center gap-2
         ${isSaving ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}
-        bottom-20 right-4 md:bottom-24 md:right-4 
+        bottom-20 right-4 md:bottom-8 md:right-4 
       `}>
           <Save size={14} className={`${currentTheme.colors.accent} animate-spin`} />
           <span className={`text-[10px] font-mono uppercase tracking-widest ${currentTheme.colors.textDim}`}>Saving...</span>
@@ -507,26 +497,49 @@ const App: React.FC = () => {
       <main className="flex-1 flex flex-col overflow-hidden pt-14 md:pt-0 pb-16 md:pb-0">
 
         {/* TOP SECTION: Split into Left (Clicker) and Right (Shop) */}
-        <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+        <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
             
             {/* --- LEFT PANEL / CLICKER TAB --- */}
             <div className={`
                 flex-1 relative flex flex-col h-full transition-opacity duration-300
                 ${mobileTab === 'clicker' ? 'flex' : 'hidden md:flex'}
             `}>
-                {/* Desktop Tools */}
-                <div className="hidden md:flex absolute top-4 left-4 z-40 gap-2">
+                {/* Desktop Tools (Left Side) */}
+                <div className="hidden md:flex absolute top-4 left-6 z-40 gap-3 items-center">
+                    {/* Settings Toggle */}
                     <button 
-                        onClick={() => setShowDesktopSettings(!showDesktopSettings)}
-                        className={`p-2 rounded-lg bg-white/5 ${currentTheme.colors.accentHover} border border-transparent transition-all hover:bg-white/10`}
+                        onClick={() => toggleDesktopPanel('settings')}
+                        className={`p-2.5 rounded-xl border transition-all hover:scale-105 ${activeDesktopPanel === 'settings' ? `bg-white/10 ${currentTheme.colors.border} ${currentTheme.colors.accent}` : `bg-black/40 border-transparent hover:bg-white/10 text-zinc-400`}`}
+                        title="Settings"
                     >
                         <Settings size={20} />
                     </button>
+                    
+                    {/* Multiplayer */}
                     <button 
                         onClick={() => setShowMultiplayer(true)}
-                        className={`p-2 rounded-lg bg-white/5 ${currentTheme.colors.accentHover} border border-transparent transition-all hover:bg-white/10`}
+                        className={`p-2.5 rounded-xl border bg-black/40 border-transparent hover:bg-white/10 text-zinc-400 hover:text-indigo-400 transition-all hover:scale-105`}
+                        title="Multiplayer Battle"
                     >
                         <Users size={20} />
+                    </button>
+
+                    {/* Upgrades Toggle */}
+                    <button 
+                        onClick={() => toggleDesktopPanel('upgrades')}
+                        className={`p-2.5 rounded-xl border transition-all hover:scale-105 ${activeDesktopPanel === 'upgrades' ? `bg-white/10 ${currentTheme.colors.border} ${currentTheme.colors.accent}` : `bg-black/40 border-transparent hover:bg-white/10 text-zinc-400`}`}
+                        title="Upgrades Shop"
+                    >
+                        <ShoppingBag size={20} />
+                    </button>
+
+                    {/* Achievements Toggle */}
+                    <button 
+                        onClick={() => toggleDesktopPanel('achievements')}
+                        className={`p-2.5 rounded-xl border transition-all hover:scale-105 ${activeDesktopPanel === 'achievements' ? `bg-white/10 ${currentTheme.colors.border} ${currentTheme.colors.accent}` : `bg-black/40 border-transparent hover:bg-white/10 text-zinc-400`}`}
+                        title="Achievements"
+                    >
+                        <Trophy size={20} />
                     </button>
                 </div>
 
@@ -543,20 +556,69 @@ const App: React.FC = () => {
                     </div>
                 )}
 
-                {/* Settings Dropdown (Desktop) */}
-                {showDesktopSettings && (
-                    <div className={`hidden md:block absolute top-16 left-4 z-50 w-80 ${currentTheme.colors.panelBg} border ${currentTheme.colors.border} rounded-2xl p-6 shadow-2xl animate-slide-in bg-zinc-900`}>
-                    {renderSettingsContent()}
+                {/* --- FLOATING DESKTOP PANELS --- */}
+
+                {/* Settings Panel */}
+                {activeDesktopPanel === 'settings' && (
+                    <div className={`hidden md:block absolute top-20 left-6 z-50 w-80 ${currentTheme.colors.panelBg} border ${currentTheme.colors.border} rounded-2xl p-6 shadow-2xl animate-slide-in backdrop-blur-xl`}>
+                        <div className="flex justify-between items-center mb-4 border-b border-white/5 pb-2">
+                            <h3 className="font-bold uppercase tracking-wider text-sm">Settings</h3>
+                            <button onClick={() => setActiveDesktopPanel('none')}><X size={16} className="text-zinc-500 hover:text-white" /></button>
+                        </div>
+                        {renderSettingsContent()}
+                    </div>
+                )}
+
+                {/* Upgrades Panel (Floating) */}
+                {activeDesktopPanel === 'upgrades' && (
+                    <div className={`hidden md:flex flex-col absolute top-20 left-6 z-50 w-96 max-h-[70vh] ${currentTheme.colors.panelBg} border ${currentTheme.colors.border} rounded-2xl shadow-2xl animate-slide-in backdrop-blur-xl overflow-hidden`}>
+                        <div className="flex justify-between items-center p-4 border-b border-white/5 bg-black/20">
+                            <div className="flex items-center gap-2">
+                                <ShoppingBag size={18} className={currentTheme.colors.accent} />
+                                <h3 className="font-bold uppercase tracking-wider text-sm">Upgrades</h3>
+                            </div>
+                            <button onClick={() => setActiveDesktopPanel('none')}><X size={16} className="text-zinc-500 hover:text-white" /></button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto">
+                            <UpgradeShop 
+                                points={gameState.points} 
+                                purchased={gameState.upgrades} 
+                                onBuy={handleBuyUpgrade} 
+                                theme={currentTheme}
+                                prestigeMultiplier={prestigeMultiplier}
+                                difficulty={gameState.difficulty}
+                            />
+                        </div>
+                    </div>
+                )}
+
+                {/* Achievements Panel (Floating) */}
+                {activeDesktopPanel === 'achievements' && (
+                    <div className={`hidden md:flex flex-col absolute top-20 left-6 z-50 w-[500px] max-h-[60vh] ${currentTheme.colors.panelBg} border ${currentTheme.colors.border} rounded-2xl shadow-2xl animate-slide-in backdrop-blur-xl overflow-hidden`}>
+                        <div className="flex justify-between items-center p-4 border-b border-white/5 bg-black/20">
+                            <div className="flex items-center gap-2">
+                                <Trophy size={18} className={currentTheme.colors.accent} />
+                                <h3 className="font-bold uppercase tracking-wider text-sm">Achievements</h3>
+                            </div>
+                            <button onClick={() => setActiveDesktopPanel('none')}><X size={16} className="text-zinc-500 hover:text-white" /></button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto">
+                            <AchievementPanel unlockedIds={gameState.unlockedAchievements} theme={currentTheme} />
+                        </div>
                     </div>
                 )}
 
                 {/* Challenge Widget */}
                 {activeChallenge && (
-                     <ChallengeWidget challenge={activeChallenge} currentValue={activeChallenge.targetType === 'POINTS' ? gameState.points : gameState.totalClicks} theme={currentTheme} />
+                     <div className="relative w-full z-30 pointer-events-none md:mt-20">
+                        <div className="pointer-events-auto">
+                            <ChallengeWidget challenge={activeChallenge} currentValue={activeChallenge.targetType === 'POINTS' ? gameState.points : gameState.totalClicks} theme={currentTheme} />
+                        </div>
+                     </div>
                 )}
 
                 {/* Clicker Content */}
-                <div className="flex-1 relative">
+                <div className="flex-1 relative flex items-center justify-center">
                     <Clicker 
                         onClick={handleManualClick} 
                         points={gameState.points}
@@ -576,10 +638,12 @@ const App: React.FC = () => {
                 </div>
             </div>
 
-            {/* --- RIGHT PANEL / UPGRADES TAB --- */}
+            {/* --- MOBILE ONLY PANELS (Preserved) --- */}
+            
+            {/* Mobile Upgrades Tab */}
             <div className={`
-                md:w-[450px] flex-col z-20 shadow-2xl bg-black/20 border-l border-white/5
-                ${mobileTab === 'upgrades' ? 'flex flex-1 w-full' : 'hidden md:flex h-full'}
+                flex-col z-20 shadow-2xl bg-black/20 border-l border-white/5
+                ${mobileTab === 'upgrades' ? 'flex flex-1 w-full' : 'hidden'}
             `}>
                 <UpgradeShop 
                     points={gameState.points} 
@@ -591,7 +655,7 @@ const App: React.FC = () => {
                 />
             </div>
             
-            {/* --- MOBILE SETTINGS TAB --- */}
+            {/* Mobile Settings Tab */}
             <div className={`
                 flex-1 flex flex-col p-6 overflow-y-auto bg-black/40
                 ${mobileTab === 'settings' ? 'flex' : 'hidden'}
@@ -608,11 +672,6 @@ const App: React.FC = () => {
                     ZenClicker v1.2.0
                 </div>
             </div>
-        </div>
-
-        {/* BOTTOM SECTION: Achievements Footer (Desktop Only) */}
-        <div className="hidden md:block h-60 w-full z-30 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
-            <AchievementPanel unlockedIds={gameState.unlockedAchievements} theme={currentTheme} />
         </div>
 
       </main>
@@ -644,7 +703,7 @@ const App: React.FC = () => {
         </button>
       </nav>
 
-      {/* Prestige Confirmation Modal - OPTIMIZED: Removed backdrop-blur */}
+      {/* Prestige Confirmation Modal */}
       {showPrestigeModal && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/90 animate-slide-in">
             <div className={`max-w-md w-full ${currentTheme.colors.panelBg} border ${currentTheme.colors.border} rounded-2xl p-8 text-center relative overflow-hidden shadow-2xl`}>

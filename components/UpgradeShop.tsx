@@ -32,16 +32,8 @@ const UpgradeShop: React.FC<UpgradeShopProps> = ({ points, purchased, onBuy, the
   };
 
   return (
-    <div className={`h-full flex flex-col ${theme.colors.panelBg} border-l ${theme.colors.border} backdrop-blur-xl transition-colors duration-300`}>
-      <div className={`p-6 border-b ${theme.colors.border}`}>
-        <h3 className={`text-xl font-semibold ${theme.colors.text}`}>Upgrades</h3>
-        <p className={`text-sm mt-1 ${theme.colors.textDim}`}>Enhance your generation capabilities.</p>
-        <div className={`text-xs mt-2 font-mono uppercase ${theme.colors.accent} opacity-80`}>
-          Difficulty: {DIFFICULTY_CONFIG[difficulty].label}
-        </div>
-      </div>
-      
-      {/* Increased padding-bottom from pb-24 to pb-48 to aggressively fix mobile scrolling overlap issues */}
+    <div className={`h-full flex flex-col transition-colors duration-300`}>
+      {/* Increased padding-bottom for mobile */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-48 md:pb-4">
         {UPGRADES.map(upgrade => {
           const cost = getCost(upgrade);
