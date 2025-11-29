@@ -102,7 +102,9 @@ const App: React.FC = () => {
 
   // --- Game Loop ---
   useEffect(() => {
-    if (gameState.autoPointsPerSecond === 0 || isIdle) return;
+    // PERFORMANCE: Pause game loop if modal is open to reduce load
+    if (gameState.autoPointsPerSecond === 0 || isIdle || showPrestigeModal || showPrestigeSuccess) return;
+    
     const interval = setInterval(() => {
       setGameState(prev => ({
         ...prev,
@@ -110,21 +112,26 @@ const App: React.FC = () => {
       }));
     }, 100);
     return () => clearInterval(interval);
-  }, [gameState.autoPointsPerSecond, prestigeMultiplier, difficultyMult, isIdle]);
+  }, [gameState.autoPointsPerSecond, prestigeMultiplier, difficultyMult, isIdle, showPrestigeModal, showPrestigeSuccess]);
 
-  // --- Save Loop ---
+  // --- Save Logic (Manual & Auto) ---
+  const saveGame = useCallback((state: GameState) => {
+    setIsSaving(true);
+    localStorage.setItem('zenClickerSave', JSON.stringify(state));
+    setTimeout(() => setIsSaving(false), 800);
+  }, []);
+
+  // Auto-Save Loop
   useEffect(() => {
     const interval = setInterval(() => {
-      setIsSaving(true);
-      localStorage.setItem('zenClickerSave', JSON.stringify(gameState));
-      setTimeout(() => setIsSaving(false), 800);
+      saveGame(gameState);
     }, 5000); // Save every 5 seconds
     return () => clearInterval(interval);
-  }, [gameState]);
+  }, [gameState, saveGame]);
 
   // --- Challenge Logic ---
   useEffect(() => {
-    if (showMultiplayer || isIdle) return;
+    if (showMultiplayer || isIdle || showPrestigeSuccess) return;
 
     if (!activeChallenge) {
       const spawnTimer = setInterval(() => {
@@ -150,7 +157,7 @@ const App: React.FC = () => {
             failChallenge();
         }
     }
-  }, [activeChallenge, gameState.points, gameState.totalClicks, showMultiplayer, isIdle]);
+  }, [activeChallenge, gameState.points, gameState.totalClicks, showMultiplayer, isIdle, showPrestigeSuccess]);
 
   const spawnChallenge = () => {
     const type = Math.random() > 0.5 ? 'CLICKS' : 'POINTS';
@@ -254,17 +261,27 @@ const App: React.FC = () => {
   };
 
   const handlePrestigeComplete = () => {
-    setGameState(prev => ({
-        ...INITIAL_STATE,
-        totalClicks: prev.totalClicks,
-        unlockedAchievements: prev.unlockedAchievements,
-        prestigeLevel: prev.prestigeLevel + 1,
-        theme: prev.theme,
-        difficulty: prev.difficulty,
-        multiplayerMatches: prev.multiplayerMatches,
-        multiplayerWins: prev.multiplayerWins,
-        settings: prev.settings
-    }));
+    setGameState(prev => {
+        // Construct the new state carefully to ensure clean reset + persistence of prestige data
+        const newState: GameState = {
+            ...INITIAL_STATE,
+            // Keep stats that persist through prestige
+            totalClicks: prev.totalClicks,
+            unlockedAchievements: prev.unlockedAchievements,
+            prestigeLevel: prev.prestigeLevel + 1,
+            // Keep settings
+            theme: prev.theme,
+            difficulty: prev.difficulty,
+            settings: prev.settings,
+            multiplayerMatches: prev.multiplayerMatches,
+            multiplayerWins: prev.multiplayerWins,
+        };
+        
+        // CRITICAL: Force save immediately to disk to prevent data loss if user refreshes right after
+        saveGame(newState);
+        
+        return newState;
+    });
     setShowPrestigeSuccess(false);
   };
 
@@ -469,7 +486,7 @@ const App: React.FC = () => {
       )}
 
       {/* Mobile Top Header */}
-      <div className="md:hidden absolute top-0 left-0 right-0 h-14 z-30 flex items-center justify-between px-4 backdrop-blur-md border-b border-white/5 bg-black/20">
+      <div className="md:hidden absolute top-0 left-0 right-0 h-14 z-30 flex items-center justify-between px-4 border-b border-white/5 bg-black/90">
             <span className="font-bold text-lg tracking-tight">Zen<span className={currentTheme.colors.accent}>Clicker</span></span>
             {gameState.points >= PRESTIGE_THRESHOLD && (
                 <button 
@@ -523,7 +540,7 @@ const App: React.FC = () => {
 
                 {/* Settings Dropdown (Desktop) */}
                 {showDesktopSettings && (
-                    <div className={`hidden md:block absolute top-16 left-4 z-50 w-80 ${currentTheme.colors.panelBg} border ${currentTheme.colors.border} rounded-2xl p-6 shadow-2xl backdrop-blur-xl animate-slide-in`}>
+                    <div className={`hidden md:block absolute top-16 left-4 z-50 w-80 ${currentTheme.colors.panelBg} border ${currentTheme.colors.border} rounded-2xl p-6 shadow-2xl animate-slide-in bg-zinc-900`}>
                     {renderSettingsContent()}
                     </div>
                 )}
@@ -556,7 +573,7 @@ const App: React.FC = () => {
 
             {/* --- RIGHT PANEL / UPGRADES TAB --- */}
             <div className={`
-                md:w-[450px] flex-col z-20 shadow-2xl bg-black/20 backdrop-blur-xl border-l border-white/5
+                md:w-[450px] flex-col z-20 shadow-2xl bg-black/20 border-l border-white/5
                 ${mobileTab === 'upgrades' ? 'flex flex-1 w-full' : 'hidden md:flex h-full'}
             `}>
                 <UpgradeShop 
@@ -571,7 +588,7 @@ const App: React.FC = () => {
             
             {/* --- MOBILE SETTINGS TAB --- */}
             <div className={`
-                flex-1 flex flex-col p-6 overflow-y-auto bg-black/40 backdrop-blur-md
+                flex-1 flex flex-col p-6 overflow-y-auto bg-black/40
                 ${mobileTab === 'settings' ? 'flex' : 'hidden'}
             `}>
                 <h2 className="text-2xl font-bold mb-8">Menu</h2>
@@ -596,7 +613,7 @@ const App: React.FC = () => {
       </main>
 
       {/* Mobile Bottom Navigation */}
-      <nav className="md:hidden absolute bottom-0 left-0 right-0 h-16 bg-black/80 backdrop-blur-lg border-t border-white/5 flex justify-around items-center z-50 pb-safe">
+      <nav className="md:hidden absolute bottom-0 left-0 right-0 h-16 bg-black/90 border-t border-white/5 flex justify-around items-center z-50 pb-safe">
         <button 
             onClick={() => setMobileTab('clicker')}
             className={`flex flex-col items-center gap-1.5 p-2 w-16 transition-colors ${mobileTab === 'clicker' ? currentTheme.colors.accent : 'text-zinc-500'}`}
@@ -622,9 +639,9 @@ const App: React.FC = () => {
         </button>
       </nav>
 
-      {/* Prestige Confirmation Modal */}
+      {/* Prestige Confirmation Modal - OPTIMIZED: Removed backdrop-blur */}
       {showPrestigeModal && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-slide-in">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/90 animate-slide-in">
             <div className={`max-w-md w-full ${currentTheme.colors.panelBg} border ${currentTheme.colors.border} rounded-2xl p-8 text-center relative overflow-hidden shadow-2xl`}>
                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500" />
                 

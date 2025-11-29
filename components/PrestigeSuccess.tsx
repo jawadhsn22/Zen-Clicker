@@ -12,8 +12,8 @@ const PrestigeSuccess: React.FC<PrestigeSuccessProps> = ({ level, newMultiplier,
   const [showContent, setShowContent] = useState(false);
 
   useEffect(() => {
-    // Generate particles for starburst effect
-    const newParticles = Array.from({ length: 60 }).map((_, i) => {
+    // OPTIMIZATION: Reduced particle count from 60 to 30 to prevent GPU lag on some devices
+    const newParticles = Array.from({ length: 30 }).map((_, i) => {
       const angle = Math.random() * 360;
       const distance = 50 + Math.random() * 100; // Percentage distance
       const duration = 1 + Math.random() * 2;
@@ -36,10 +36,14 @@ const PrestigeSuccess: React.FC<PrestigeSuccessProps> = ({ level, newMultiplier,
     setParticles(newParticles);
 
     // Stagger content reveal
-    setTimeout(() => setShowContent(true), 500);
+    const revealTimer = setTimeout(() => setShowContent(true), 500);
 
-    const timer = setTimeout(onComplete, 5000); // Slightly longer to enjoy animation
-    return () => clearTimeout(timer);
+    const completeTimer = setTimeout(onComplete, 5000); 
+
+    return () => {
+      clearTimeout(revealTimer);
+      clearTimeout(completeTimer);
+    };
   }, [onComplete]);
 
   return (
