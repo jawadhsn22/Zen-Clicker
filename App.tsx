@@ -679,12 +679,15 @@ const App: React.FC = () => {
                         hapticsEnabled={gameState.settings.hapticsEnabled}
                     />
 
-                    {/* Toast Notification Positioned Below Clicker */}
+                    {/* Toast Notification */}
                     {notification && (
-                        <div className="absolute bottom-4 left-0 right-0 px-4 md:relative md:bottom-auto md:mt-8 md:w-full md:max-w-sm md:px-0 z-50 flex justify-center pointer-events-none">
-                            <div className="w-full max-w-sm pointer-events-auto">
-                                <Toast message={notification} onClose={() => setNotification(null)} theme={currentTheme} />
-                            </div>
+                        <div className={`
+                            /* Mobile: Absolute positioning above nav bar (prevent layout shift) */
+                            absolute bottom-4 left-1/2 -translate-x-1/2 w-[90%] z-50
+                            /* Desktop: Relative flow positioning */
+                            md:relative md:bottom-auto md:left-auto md:translate-x-0 md:mt-8 md:w-full md:max-w-sm
+                        `}>
+                            <Toast message={notification} onClose={() => setNotification(null)} theme={currentTheme} />
                         </div>
                     )}
                 </div>
