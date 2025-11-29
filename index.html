@@ -2,8 +2,27 @@
 <html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Zen Clicker</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    
+    <!-- Primary Meta Tags -->
+    <title>Zen Clicker - Minimalist Idle Game</title>
+    <meta name="title" content="Zen Clicker - Minimalist Idle Game" />
+    <meta name="description" content="A relaxing, aesthetic incremental clicker game. Earn points, unlock upgrades, prestige, and battle friends in this zen idle experience." />
+    <meta name="keywords" content="clicker game, idle game, zen game, incremental game, web game, react game, multiplayer clicker, relaxing game" />
+    <meta name="author" content="Zen Clicker" />
+    <meta name="theme-color" content="#09090b" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Zen Clicker - Minimalist Idle Game" />
+    <meta property="og:description" content="A relaxing, aesthetic incremental clicker game. Earn points, unlock upgrades, prestige, and battle friends." />
+    <meta property="og:site_name" content="Zen Clicker" />
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:title" content="Zen Clicker - Minimalist Idle Game" />
+    <meta property="twitter:description" content="A relaxing, aesthetic incremental clicker game. Earn points, unlock upgrades, prestige, and battle friends." />
+
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -45,6 +64,7 @@
         background-color: #09090b; /* zinc-950 */
         color: #e4e4e7; /* zinc-200 */
         overflow: hidden; /* Prevent body scroll, handle in containers */
+        touch-action: manipulation; /* Improves touch response */
       }
       /* Custom Scrollbar */
       ::-webkit-scrollbar {
