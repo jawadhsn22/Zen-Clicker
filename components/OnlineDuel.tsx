@@ -25,6 +25,7 @@ const OnlineDuel: React.FC<OnlineDuelProps> = ({ initialRoomId, onClose, theme, 
   const [myId, setMyId] = useState<string>('');
   const [hostId, setHostId] = useState<string>('');
   const [conn, setConn] = useState<any>(null);
+  const [isConnected, setIsConnected] = useState(false); // Track if data channel is actually open
   const [error, setError] = useState<string | null>(null);
   const [waitingForConfirm, setWaitingForConfirm] = useState(false);
   
@@ -71,6 +72,7 @@ const OnlineDuel: React.FC<OnlineDuelProps> = ({ initialRoomId, onClose, theme, 
     peer.on('error', (err) => {
       console.error(err);
       setError("Connection error. Please refresh and try again.");
+      setIsConnected(false);
     });
 
     return () => {
@@ -88,11 +90,14 @@ const OnlineDuel: React.FC<OnlineDuelProps> = ({ initialRoomId, onClose, theme, 
 
   const setupConnection = (connection: any) => {
     setConn(connection);
+    setIsConnected(false); // Reset on new connection attempt
     
     connection.on('open', () => {
+      console.log('Connection opened');
+      setIsConnected(true);
       setError(null);
       connection.send({ type: 'HELLO' });
-      // Only set to lobby if we haven't already started (reconnection logic could go here)
+      // Only set to lobby if we haven't already started
       setPhase('LOBBY');
       playSound('success');
     });
@@ -102,8 +107,15 @@ const OnlineDuel: React.FC<OnlineDuelProps> = ({ initialRoomId, onClose, theme, 
     });
 
     connection.on('close', () => {
+      console.log('Connection closed');
+      setIsConnected(false);
       setError("Opponent disconnected.");
       setPhase('INIT');
+    });
+
+    connection.on('error', (err: any) => {
+      console.error('Connection error:', err);
+      setIsConnected(false);
     });
   };
 
@@ -193,11 +205,12 @@ const OnlineDuel: React.FC<OnlineDuelProps> = ({ initialRoomId, onClose, theme, 
   };
 
   const handleHostStart = () => {
-    if (conn && conn.open) {
+    // Double check connection state before sending
+    if (isConnected && conn && conn.open) {
       setWaitingForConfirm(true);
       conn.send({ type: 'START_REQ' });
     } else {
-        setError("Connection lost. Cannot start.");
+        setError("Connection unstable. Please wait.");
     }
   };
 
@@ -259,22 +272,41 @@ const OnlineDuel: React.FC<OnlineDuelProps> = ({ initialRoomId, onClose, theme, 
   };
 
   // Render Helpers
-  const renderLobby = () => (
+  const renderLobby = () => {
+    // Logic to determine status text based on detailed connection state
+    let statusTitle = '';
+    let statusDesc = '';
+
+    if (isConnected) {
+        statusTitle = 'Opponent Connected!';
+        statusDesc = 'Ready to duel.';
+    } else if (conn) {
+        statusTitle = 'Connecting...';
+        statusDesc = 'Establishing secure handshake...';
+    } else if (isHost) {
+        statusTitle = 'Waiting for Player...';
+        statusDesc = 'Share the link below to invite a friend.';
+    } else {
+        statusTitle = 'Connecting to Host...';
+        statusDesc = 'Locating game room...';
+    }
+
+    return (
     <div className="flex flex-col items-center gap-6 animate-slide-in w-full max-w-md">
       <div className={`p-4 rounded-full bg-white/5 ${theme.colors.accent}`}>
-        <Globe size={48} />
+        <Globe size={48} className={!isConnected && conn ? "animate-pulse" : ""} />
       </div>
       
       <div className="text-center">
         <h3 className="text-2xl font-bold text-white mb-2">
-          {conn ? 'Opponent Connected!' : isHost ? 'Waiting for Player...' : 'Connecting to Host...'}
+          {statusTitle}
         </h3>
         <p className="text-zinc-400 text-sm">
-          {conn ? 'Ready to duel.' : isHost ? 'Share the link below to invite a friend.' : 'Establishing secure connection.'}
+          {statusDesc}
         </p>
       </div>
 
-      {isHost && !conn && (
+      {isHost && !isConnected && (
         <div className="w-full">
            <div className={`flex items-center gap-2 p-3 rounded-xl border ${theme.colors.border} bg-black/20`}>
               <LinkIcon size={16} className="text-zinc-500 shrink-0" />
@@ -295,22 +327,29 @@ const OnlineDuel: React.FC<OnlineDuelProps> = ({ initialRoomId, onClose, theme, 
         </div>
       )}
 
+      {/* Start Button - Only show if we know about a connection attempt */}
       {conn && isHost && (
         <button 
           onClick={handleHostStart}
-          disabled={waitingForConfirm}
+          disabled={waitingForConfirm || !isConnected}
           className={`
             w-full py-4 rounded-xl font-bold text-lg uppercase tracking-widest
             bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500
             text-white shadow-lg shadow-violet-500/20
             animate-pulse-slow
-            disabled:opacity-50 disabled:cursor-not-allowed
+            disabled:opacity-50 disabled:cursor-not-allowed disabled:animate-none
+            transition-all duration-300
           `}
         >
           {waitingForConfirm ? (
             <div className="flex items-center justify-center gap-2">
                  <Loader2 size={20} className="animate-spin" />
                  <span>Syncing...</span>
+            </div>
+          ) : !isConnected ? (
+            <div className="flex items-center justify-center gap-2">
+                 <Loader2 size={20} className="animate-spin" />
+                 <span>Connecting...</span>
             </div>
           ) : 'Start Duel'}
         </button>
@@ -319,11 +358,12 @@ const OnlineDuel: React.FC<OnlineDuelProps> = ({ initialRoomId, onClose, theme, 
       {conn && !isHost && (
         <div className="flex items-center gap-3 text-zinc-400 bg-white/5 px-6 py-3 rounded-full">
           <Loader2 size={18} className="animate-spin" />
-          <span>Waiting for host to start...</span>
+          <span>{isConnected ? 'Waiting for host to start...' : 'Handshaking...'}</span>
         </div>
       )}
     </div>
-  );
+    );
+  };
 
   const renderGame = () => (
     <div className="flex-1 w-full flex flex-col relative">
