@@ -26,6 +26,7 @@ const OnlineDuel: React.FC<OnlineDuelProps> = ({ initialRoomId, onClose, theme, 
   const [hostId, setHostId] = useState<string>('');
   const [conn, setConn] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const [waitingForConfirm, setWaitingForConfirm] = useState(false);
   
   const [myScore, setMyScore] = useState(0);
   const [opponentScore, setOpponentScore] = useState(0);
@@ -44,7 +45,10 @@ const OnlineDuel: React.FC<OnlineDuelProps> = ({ initialRoomId, onClose, theme, 
       config: {
         iceServers: [
           { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' }
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' },
+          { urls: 'stun:stun3.l.google.com:19302' },
+          { urls: 'stun:stun4.l.google.com:19302' },
         ]
       }
     });
@@ -66,7 +70,7 @@ const OnlineDuel: React.FC<OnlineDuelProps> = ({ initialRoomId, onClose, theme, 
 
     peer.on('error', (err) => {
       console.error(err);
-      setError("Connection error. Please try again or refresh.");
+      setError("Connection error. Please refresh and try again.");
     });
 
     return () => {
@@ -88,12 +92,13 @@ const OnlineDuel: React.FC<OnlineDuelProps> = ({ initialRoomId, onClose, theme, 
     connection.on('open', () => {
       setError(null);
       connection.send({ type: 'HELLO' });
+      // Only set to lobby if we haven't already started (reconnection logic could go here)
       setPhase('LOBBY');
       playSound('success');
     });
 
     connection.on('data', (data: GameMessage) => {
-      handleData(data);
+      handleData(data, connection);
     });
 
     connection.on('close', () => {
@@ -102,13 +107,21 @@ const OnlineDuel: React.FC<OnlineDuelProps> = ({ initialRoomId, onClose, theme, 
     });
   };
 
-  const handleData = (data: GameMessage) => {
+  const handleData = (data: GameMessage, connection: any) => {
     switch (data.type) {
       case 'HELLO':
         // Connection established handshake
         break;
       case 'START_REQ':
-        // Host requested start, show countdown
+        // Host requested start. Guest sends confirmation then starts countdown.
+        if (connection && connection.open) {
+            connection.send({ type: 'START_CONFIRM' });
+            startCountdown();
+        }
+        break;
+      case 'START_CONFIRM':
+        // Host receives confirmation from guest.
+        setWaitingForConfirm(false);
         startCountdown();
         break;
       case 'CLICK':
@@ -180,9 +193,11 @@ const OnlineDuel: React.FC<OnlineDuelProps> = ({ initialRoomId, onClose, theme, 
   };
 
   const handleHostStart = () => {
-    if (conn) {
+    if (conn && conn.open) {
+      setWaitingForConfirm(true);
       conn.send({ type: 'START_REQ' });
-      startCountdown();
+    } else {
+        setError("Connection lost. Cannot start.");
     }
   };
 
@@ -191,14 +206,14 @@ const OnlineDuel: React.FC<OnlineDuelProps> = ({ initialRoomId, onClose, theme, 
     const newScore = myScore + 1;
     setMyScore(newScore);
     playSound('click');
-    if (conn) {
+    if (conn && conn.open) {
       conn.send({ type: 'CLICK', payload: newScore });
     }
   };
 
   const handleRematch = () => {
     resetGame();
-    if (conn) conn.send({ type: 'REMATCH' });
+    if (conn && conn.open) conn.send({ type: 'REMATCH' });
   };
 
   const resetGame = () => {
@@ -218,8 +233,6 @@ const OnlineDuel: React.FC<OnlineDuelProps> = ({ initialRoomId, onClose, theme, 
       url.hash = '';
 
       // Fix for "Server Not Found" on static hosts:
-      // Ensure directory paths end with a slash before appending query params.
-      // We assume if the last segment contains a dot, it's a file (e.g. index.html), so we leave it alone.
       const path = url.pathname;
       const lastSegment = path.split('/').pop();
       const looksLikeFile = lastSegment && lastSegment.includes('.');
@@ -285,14 +298,21 @@ const OnlineDuel: React.FC<OnlineDuelProps> = ({ initialRoomId, onClose, theme, 
       {conn && isHost && (
         <button 
           onClick={handleHostStart}
+          disabled={waitingForConfirm}
           className={`
             w-full py-4 rounded-xl font-bold text-lg uppercase tracking-widest
             bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500
             text-white shadow-lg shadow-violet-500/20
             animate-pulse-slow
+            disabled:opacity-50 disabled:cursor-not-allowed
           `}
         >
-          Start Duel
+          {waitingForConfirm ? (
+            <div className="flex items-center justify-center gap-2">
+                 <Loader2 size={20} className="animate-spin" />
+                 <span>Syncing...</span>
+            </div>
+          ) : 'Start Duel'}
         </button>
       )}
 
