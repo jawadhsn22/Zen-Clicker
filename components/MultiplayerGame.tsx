@@ -1,8 +1,10 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { ThemeConfig } from '../types';
-import { X, Trophy, Users, Globe, Smartphone } from 'lucide-react';
+import { X, Trophy, Users, Globe, Smartphone, Bot } from 'lucide-react';
 import { playSound } from '../utils/sound';
 import OnlineDuel from './OnlineDuel';
+import BotDuel from './BotDuel';
 
 interface MultiplayerGameProps {
   onClose: () => void;
@@ -12,7 +14,7 @@ interface MultiplayerGameProps {
 }
 
 const MultiplayerGame: React.FC<MultiplayerGameProps> = ({ onClose, theme, initialRoomId, onMatchComplete }) => {
-  const [mode, setMode] = useState<'MENU' | 'LOCAL' | 'ONLINE'>(initialRoomId ? 'ONLINE' : 'MENU');
+  const [mode, setMode] = useState<'MENU' | 'LOCAL' | 'ONLINE' | 'BOT'>(initialRoomId ? 'ONLINE' : 'MENU');
   
   // Local State
   const [playerCount, setPlayerCount] = useState<number>(2);
@@ -95,6 +97,14 @@ const MultiplayerGame: React.FC<MultiplayerGameProps> = ({ onClose, theme, initi
     />;
   }
 
+  if (mode === 'BOT') {
+    return <BotDuel 
+        onClose={onClose}
+        theme={theme}
+        onMatchComplete={(won) => onMatchComplete({ winnerIndex: won ? 0 : 1, isOnline: false })}
+    />;
+  }
+
   // Render Local Game or Menu
   return (
     <div className="fixed inset-0 z-50 bg-zinc-950 flex flex-col font-sans">
@@ -105,13 +115,25 @@ const MultiplayerGame: React.FC<MultiplayerGameProps> = ({ onClose, theme, initi
       </div>
 
       {mode === 'MENU' && (
-        <div className="flex-1 flex flex-col items-center justify-center p-8 space-y-8 animate-slide-in">
-           <div className="text-center mb-8">
+        <div className="flex-1 flex flex-col items-center justify-center p-8 space-y-8 animate-slide-in overflow-y-auto">
+           <div className="text-center mb-4 mt-20">
                <h2 className="text-4xl font-bold text-white mb-2 tracking-tight">Multiplayer</h2>
                <p className="text-zinc-400">Choose your battleground</p>
            </div>
 
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-2xl">
+           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-4xl pb-10">
+               {/* BOT MODE */}
+               <button 
+                  onClick={() => setMode('BOT')}
+                  className={`group relative p-8 rounded-2xl border ${theme.colors.border} bg-zinc-900 hover:bg-zinc-800 transition-all hover:scale-[1.02] text-left overflow-hidden`}
+               >
+                   <div className={`absolute top-0 right-0 p-32 bg-gradient-to-br from-white/5 to-transparent rounded-bl-full transition-transform group-hover:scale-110`} />
+                   <Bot size={40} className="text-amber-400 mb-4" />
+                   <h3 className="text-2xl font-bold text-white mb-2">Solo Practice</h3>
+                   <p className="text-zinc-500 text-sm leading-relaxed">Train against AI bots. Perfect for warming up your fingers.</p>
+               </button>
+
+               {/* LOCAL MODE */}
                <button 
                   onClick={() => setMode('LOCAL')}
                   className={`group relative p-8 rounded-2xl border ${theme.colors.border} bg-zinc-900 hover:bg-zinc-800 transition-all hover:scale-[1.02] text-left overflow-hidden`}
@@ -122,6 +144,7 @@ const MultiplayerGame: React.FC<MultiplayerGameProps> = ({ onClose, theme, initi
                    <p className="text-zinc-500 text-sm leading-relaxed">Play with up to 4 friends on this device. Fast-paced tapping frenzy.</p>
                </button>
 
+               {/* ONLINE MODE */}
                <button 
                   onClick={() => setMode('ONLINE')}
                   className={`group relative p-8 rounded-2xl border ${theme.colors.border} bg-zinc-900 hover:bg-zinc-800 transition-all hover:scale-[1.02] text-left overflow-hidden`}

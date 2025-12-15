@@ -21,6 +21,7 @@ export interface Upgrade {
   costMultiplier: number;
   description: string;
   icon: string;
+  condition?: (state: GameState) => boolean; // Unlock condition
 }
 
 export interface Achievement {

@@ -1,20 +1,20 @@
+
 import React from 'react';
-import { Upgrade, ThemeConfig, Difficulty } from '../types';
+import { Upgrade, ThemeConfig, Difficulty, GameState } from '../types';
 import { UPGRADES, DIFFICULTY_CONFIG } from '../constants';
 import { playSound } from '../utils/sound';
 import * as Icons from 'lucide-react';
 
 interface UpgradeShopProps {
-  points: number;
-  purchased: Record<string, number>;
+  gameState: GameState;
   onBuy: (upgrade: Upgrade) => void;
   theme: ThemeConfig;
   prestigeMultiplier: number;
-  difficulty: Difficulty;
 }
 
-const UpgradeShop: React.FC<UpgradeShopProps> = ({ points, purchased, onBuy, theme, prestigeMultiplier, difficulty }) => {
-  
+const UpgradeShop: React.FC<UpgradeShopProps> = ({ gameState, onBuy, theme, prestigeMultiplier }) => {
+  const { points, upgrades: purchased, difficulty } = gameState;
+
   const getCost = (upgrade: Upgrade) => {
     const count = purchased[upgrade.id] || 0;
     const base = Math.floor(upgrade.baseCost * Math.pow(upgrade.costMultiplier, count));
@@ -31,11 +31,19 @@ const UpgradeShop: React.FC<UpgradeShopProps> = ({ points, purchased, onBuy, the
     return <Icon size={20} />;
   };
 
+  // Filter upgrades based on condition (Tiers/Realms)
+  const visibleUpgrades = UPGRADES.filter(upgrade => {
+    if (upgrade.condition) {
+        return upgrade.condition(gameState);
+    }
+    return true; // Show by default if no condition
+  });
+
   return (
     <div className={`h-full flex flex-col transition-colors duration-300`}>
       {/* Increased padding-bottom for mobile */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-48 md:pb-4">
-        {UPGRADES.map(upgrade => {
+        {visibleUpgrades.map(upgrade => {
           const cost = getCost(upgrade);
           const count = purchased[upgrade.id] || 0;
           const canAfford = points >= cost;
@@ -114,6 +122,11 @@ const UpgradeShop: React.FC<UpgradeShopProps> = ({ points, purchased, onBuy, the
             </button>
           );
         })}
+        {visibleUpgrades.length === 0 && (
+             <div className="text-center p-8 text-zinc-500 text-sm">
+                No upgrades available yet. Keep clicking!
+             </div>
+        )}
       </div>
     </div>
   );

@@ -77,10 +77,26 @@ export const THEMES: Record<string, ThemeConfig> = {
       border: 'border-stone-800',
       particle: 'text-emerald-400',
     }
+  },
+  cosmic: {
+    id: 'cosmic',
+    label: 'Cosmic Void',
+    colors: {
+      bg: 'bg-black',
+      text: 'text-fuchsia-50',
+      textDim: 'text-fuchsia-300/50',
+      accent: 'text-fuchsia-500',
+      accentHover: 'hover:border-fuchsia-500/50',
+      accentGlow: 'shadow-[0_0_60px_-15px_rgba(217,70,239,0.3)]',
+      panelBg: 'bg-zinc-950/80',
+      border: 'border-fuchsia-900/30',
+      particle: 'text-fuchsia-400',
+    }
   }
 };
 
 export const UPGRADES: Upgrade[] = [
+  // TIER 1: BASICS
   {
     id: 'cursor_reinforce',
     name: 'Reinforced Mouse',
@@ -101,6 +117,18 @@ export const UPGRADES: Upgrade[] = [
     description: '+2 Points per second',
     icon: 'Bot'
   },
+  // TIER 2: HELPERS (Unlocks at 1000 points)
+  {
+    id: 'zen_monk',
+    name: 'Zen Monk',
+    type: UpgradeType.AUTO_CLICKER,
+    baseCost: 1000,
+    basePower: 10,
+    costMultiplier: 1.5,
+    description: '+10 PPS (Realm: Helpers)',
+    icon: 'UserCheck',
+    condition: (s) => s.totalClicks >= 500 || s.points >= 500
+  },
   {
     id: 'double_tap',
     name: 'Double Tap Module',
@@ -115,11 +143,23 @@ export const UPGRADES: Upgrade[] = [
     id: 'gpu_miner',
     name: 'Point Miner GPU',
     type: UpgradeType.AUTO_CLICKER,
-    baseCost: 1000,
-    basePower: 15,
+    baseCost: 2500,
+    basePower: 25,
     costMultiplier: 1.5,
-    description: '+15 Points per second',
+    description: '+25 Points per second',
     icon: 'Cpu'
+  },
+  // TIER 3: STRUCTURES (Req: Prestige 1)
+  {
+    id: 'meditation_dojo',
+    name: 'Meditation Dojo',
+    type: UpgradeType.AUTO_CLICKER,
+    baseCost: 15000,
+    basePower: 150,
+    costMultiplier: 1.6,
+    description: '+150 PPS (Realm: Structures)',
+    icon: 'Landmark',
+    condition: (s) => s.prestigeLevel >= 1
   },
   {
     id: 'quantum_clicker',
@@ -141,6 +181,18 @@ export const UPGRADES: Upgrade[] = [
     description: '+100 Points per second',
     icon: 'Brain'
   },
+  // TIER 4: RITUALS (Req: Prestige 5)
+  {
+    id: 'enlightenment_orb',
+    name: 'Enlightenment Orb',
+    type: UpgradeType.AUTO_CLICKER,
+    baseCost: 250000,
+    basePower: 2000,
+    costMultiplier: 1.7,
+    description: '+2,000 PPS (Realm: Rituals)',
+    icon: 'CircleDot',
+    condition: (s) => s.prestigeLevel >= 5
+  },
   {
     id: 'reality_engine',
     name: 'Reality Engine',
@@ -151,7 +203,6 @@ export const UPGRADES: Upgrade[] = [
     description: '+1,000 Points per second',
     icon: 'Globe'
   },
-  // NEW UPGRADES
   {
     id: 'neural_link',
     name: 'Neural Link',
@@ -161,6 +212,18 @@ export const UPGRADES: Upgrade[] = [
     costMultiplier: 1.8,
     description: '+2,500 Points per second',
     icon: 'Network'
+  },
+  // TIER 5: ASCENDED (Req: Prestige 10)
+  {
+    id: 'void_spirit',
+    name: 'Void Spirit',
+    type: UpgradeType.AUTO_CLICKER,
+    baseCost: 5000000,
+    basePower: 50000,
+    costMultiplier: 2.0,
+    description: '+50,000 PPS (Realm: Void)',
+    icon: 'Ghost',
+    condition: (s) => s.prestigeLevel >= 10
   },
   {
     id: 'cosmic_ray',

@@ -47,13 +47,6 @@ const App: React.FC = () => {
                 if (earned > 0) {
                     // We modify the initial state directly here so the UI reflects it immediately
                     loadedState.points += earned;
-                    
-                    // Note: We can't call setOfflineGains here because we are in the initializer.
-                    // We will handle the modal trigger in a useEffect, but we store the value in a temporary global or 
-                    // just re-calculate/check it in useEffect? 
-                    // Better approach: We add a strictly temporary property to the state or handle it via a ref.
-                    // Actually, since we are inside a functional update, we can't set side effects.
-                    // Let's rely on a secondary effect to show the modal, but we MUST know the amount.
                 }
             }
         }
@@ -366,6 +359,16 @@ const App: React.FC = () => {
     setActiveDesktopPanel('none');
     window.location.reload(); // Reload to ensure clean slate
   };
+  
+  // Apply the doubled offline earnings
+  const handleOfflineDouble = () => {
+    if (offlineGains) {
+        setGameState(prev => ({
+            ...prev,
+            points: prev.points + offlineGains.points // Add it AGAIN to double it
+        }));
+    }
+  };
 
   const toggleTheme = (themeId: string) => setGameState(prev => ({ ...prev, theme: themeId }));
   const setDifficulty = (diff: Difficulty) => setGameState(prev => ({ ...prev, difficulty: diff }));
@@ -484,7 +487,7 @@ const App: React.FC = () => {
       {/* Themes */}
       <div className="space-y-3">
          <h4 className={`text-xs uppercase tracking-widest font-bold ${currentTheme.colors.textDim}`}>Theme</h4>
-         <div className="grid grid-cols-3 gap-2">
+         <div className="grid grid-cols-2 gap-2">
             {Object.values(THEMES).map(t => (
                 <button
                     key={t.id}
@@ -539,6 +542,7 @@ const App: React.FC = () => {
             timeAway={offlineGains.time} 
             theme={currentTheme}
             onClose={() => setOfflineGains(null)}
+            onDouble={handleOfflineDouble}
           />
       )}
 
@@ -705,12 +709,10 @@ const App: React.FC = () => {
                         </div>
                         <div className="flex-1 overflow-y-auto">
                             <UpgradeShop 
-                                points={gameState.points} 
-                                purchased={gameState.upgrades} 
+                                gameState={gameState}
                                 onBuy={handleBuyUpgrade} 
                                 theme={currentTheme}
                                 prestigeMultiplier={prestigeMultiplier}
-                                difficulty={gameState.difficulty}
                             />
                         </div>
                     </div>
@@ -777,12 +779,10 @@ const App: React.FC = () => {
                 ${mobileTab === 'upgrades' ? 'flex flex-1 w-full' : 'hidden'}
             `}>
                 <UpgradeShop 
-                    points={gameState.points} 
-                    purchased={gameState.upgrades} 
+                    gameState={gameState}
                     onBuy={handleBuyUpgrade} 
                     theme={currentTheme}
                     prestigeMultiplier={prestigeMultiplier}
-                    difficulty={gameState.difficulty}
                 />
             </div>
             

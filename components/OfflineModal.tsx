@@ -1,16 +1,21 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { ThemeConfig } from '../types';
-import { Moon, Clock, Coins } from 'lucide-react';
+import { Moon, Clock, Coins, Play, Loader2 } from 'lucide-react';
+import { playSound } from '../utils/sound';
 
 interface OfflineModalProps {
   earnings: number;
   timeAway: number; // in seconds
   theme: ThemeConfig;
   onClose: () => void;
+  onDouble: () => void;
 }
 
-const OfflineModal: React.FC<OfflineModalProps> = ({ earnings, timeAway, theme, onClose }) => {
+const OfflineModal: React.FC<OfflineModalProps> = ({ earnings, timeAway, theme, onClose, onDouble }) => {
+  const [isAdLoading, setIsAdLoading] = useState(false);
+  const [hasDoubled, setHasDoubled] = useState(false);
+
   // Format time away
   const formatTime = (seconds: number) => {
     const h = Math.floor(seconds / 3600);
@@ -28,6 +33,19 @@ const OfflineModal: React.FC<OfflineModalProps> = ({ earnings, timeAway, theme, 
       maximumFractionDigits: 2
     }).format(num);
   };
+
+  const handleWatchAd = () => {
+      setIsAdLoading(true);
+      // Simulate ad delay
+      setTimeout(() => {
+          setIsAdLoading(false);
+          setHasDoubled(true);
+          playSound('success');
+          onDouble(); // Trigger the reward in parent
+      }, 2000);
+  };
+
+  const displayEarnings = hasDoubled ? earnings * 2 : earnings;
 
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/90 animate-slide-in">
@@ -54,16 +72,36 @@ const OfflineModal: React.FC<OfflineModalProps> = ({ earnings, timeAway, theme, 
                 <div className="text-xs uppercase tracking-widest text-zinc-500 mb-1">Offline Earnings</div>
                 <div className={`text-3xl font-mono font-bold ${theme.colors.accent} flex items-center justify-center gap-2`}>
                     <Coins size={24} />
-                    +{formatPoints(earnings)}
+                    <div>
+                        {hasDoubled && <span className="text-xs text-green-400 block -mb-1">2X APPLIED</span>}
+                        +{formatPoints(displayEarnings)}
+                    </div>
                 </div>
             </div>
 
-            <button 
-                onClick={onClose}
-                className={`w-full py-3.5 font-bold rounded-xl shadow-lg transform transition hover:scale-[1.02] bg-white text-black hover:bg-zinc-200`}
-            >
-                COLLECT
-            </button>
+            <div className="flex flex-col gap-3">
+                {!hasDoubled && (
+                    <button 
+                        onClick={handleWatchAd}
+                        disabled={isAdLoading}
+                        className={`
+                            w-full py-3 rounded-xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 
+                            text-white shadow-lg hover:brightness-110 flex items-center justify-center gap-2
+                            disabled:opacity-50
+                        `}
+                    >
+                        {isAdLoading ? <Loader2 className="animate-spin" /> : <Play fill="currentColor" size={16} />}
+                        <span>DOUBLE REWARD</span>
+                    </button>
+                )}
+
+                <button 
+                    onClick={onClose}
+                    className={`w-full py-3.5 font-bold rounded-xl shadow-lg transform transition hover:scale-[1.02] bg-white text-black hover:bg-zinc-200`}
+                >
+                    {hasDoubled ? 'COLLECT REWARD' : 'COLLECT'}
+                </button>
+            </div>
         </div>
     </div>
   );
