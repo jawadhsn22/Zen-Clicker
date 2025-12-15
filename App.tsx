@@ -586,6 +586,10 @@ const App: React.FC = () => {
     // Changed h-screen to h-dvh for better mobile resizing support
     <div className={`flex flex-col h-[100dvh] w-full ${currentTheme.colors.bg} ${currentTheme.colors.text} overflow-hidden transition-colors duration-500`}>
       
+      {/* iOS Haptics Hack Elements (Hidden) */}
+      <input type="checkbox" id="haptic-ios-hack" className="hidden fixed -left-[9999px] opacity-0 pointer-events-none" />
+      <label htmlFor="haptic-ios-hack" className="hidden fixed -left-[9999px] opacity-0 pointer-events-none"></label>
+
       {/* Offline Earnings Modal */}
       {offlineGains && (
           <OfflineModal 

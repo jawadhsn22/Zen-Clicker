@@ -4,6 +4,7 @@ import { Particle, ThemeConfig, ClickSoundVariant } from '../types';
 import { PRESTIGE_MULTIPLIER_PER_LEVEL } from '../constants';
 import { MousePointer2, Zap } from 'lucide-react';
 import { playSound } from '../utils/sound';
+import { triggerHaptic } from '../utils/haptics';
 
 interface ClickerProps {
   onClick: () => void;
@@ -36,11 +37,8 @@ const Clicker: React.FC<ClickerProps> = ({
     // Play sound
     playSound(clickSound as ClickSoundVariant);
 
-    // Haptic Feedback (Vibration)
-    if (hapticsEnabled && typeof navigator !== 'undefined' && navigator.vibrate) {
-      // Short 10ms pulse for crisp feedback
-      navigator.vibrate(10);
-    }
+    // Haptic Feedback (Uses new utility with iOS hack)
+    triggerHaptic(hapticsEnabled);
 
     let clientX, clientY;
     if ('touches' in e) {
