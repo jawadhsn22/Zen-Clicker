@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { Challenge, ThemeConfig } from '../types';
 import { Timer, Zap } from 'lucide-react';
@@ -28,11 +29,11 @@ const ChallengeWidget: React.FC<ChallengeWidgetProps> = ({ challenge, currentVal
       absolute z-20 rounded-2xl border shadow-xl backdrop-blur-xl animate-slide-in overflow-hidden
       ${theme.colors.panelBg} ${theme.colors.border}
       
-      /* Mobile: Top Left */
-      top-2 left-4 w-[90%] max-w-[300px]
+      /* Mobile: Below header, Right aligned */
+      top-16 right-4 w-64
       
       /* Desktop: Top Left (Aligned with left edge) */
-      md:top-24 md:left-6 md:w-72
+      md:top-24 md:left-6 md:right-auto md:w-72
     `}>
       <div className="flex items-center p-3 gap-3">
         {/* Icon / Progress Ring Placeholder */}

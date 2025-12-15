@@ -41,8 +41,8 @@ const UpgradeShop: React.FC<UpgradeShopProps> = ({ gameState, onBuy, theme, pres
 
   return (
     <div className={`h-full flex flex-col transition-colors duration-300`}>
-      {/* Increased padding-bottom for mobile */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-48 md:pb-4">
+      {/* Adjusted padding: pb-20 for mobile nav, pb-4 for desktop */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-20 md:pb-4 scroll-smooth">
         {visibleUpgrades.map(upgrade => {
           const cost = getCost(upgrade);
           const count = purchased[upgrade.id] || 0;
@@ -55,7 +55,7 @@ const UpgradeShop: React.FC<UpgradeShopProps> = ({ gameState, onBuy, theme, pres
               disabled={!canAfford}
               className={`
                 relative w-full text-left p-4 rounded-xl border transition-all duration-200
-                flex items-center justify-between group
+                flex items-center justify-between group touch-manipulation
                 ${canAfford 
                   ? `bg-white/5 ${theme.colors.border} hover:bg-white/10 ${theme.colors.accentHover} hover:translate-x-1` 
                   : `bg-black/20 border-transparent opacity-60 cursor-not-allowed`}

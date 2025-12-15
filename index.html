@@ -2,7 +2,7 @@
 <html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     
     <!-- Security: Content Security Policy -->
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://*.herokuapp.com wss://*.herokuapp.com https://0.peerjs.com wss://0.peerjs.com; img-src 'self' data: https://cdn.jsdelivr.net;" />
@@ -34,6 +34,12 @@
         darkMode: 'class',
         theme: {
           extend: {
+            height: {
+              'dvh': '100dvh',
+            },
+            minHeight: {
+              'dvh': '100dvh',
+            },
             fontFamily: {
               sans: ['Inter', 'sans-serif'],
             },

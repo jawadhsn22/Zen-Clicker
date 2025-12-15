@@ -103,7 +103,7 @@ const Clicker: React.FC<ClickerProps> = ({
   };
 
   return (
-    <div className={`flex flex-col items-center justify-center h-full relative p-6 select-none ${theme.colors.text} touch-manipulation`}>
+    <div className={`flex flex-col items-center justify-center h-full relative p-6 select-none ${theme.colors.text} touch-none`}>
         {/* Ambient Glow */}
         <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 blur-[100px] rounded-full pointer-events-none opacity-20 ${theme.id === 'zen' ? 'bg-violet-600' : theme.id === 'neon' ? 'bg-cyan-500' : 'bg-emerald-500'}`} />
 
@@ -138,9 +138,10 @@ const Clicker: React.FC<ClickerProps> = ({
                 ${theme.colors.accentHover} hover:shadow-lg
                 active:scale-95
                 z-20
+                touch-none select-none
                 ${isPressed ? 'scale-95 border-current shadow-inner' : ''}
             `}
-            style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+            style={{ touchAction: 'none', WebkitTapHighlightColor: 'transparent' }}
         >
             <div className={`absolute inset-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-white/5`} />
             <MousePointer2 

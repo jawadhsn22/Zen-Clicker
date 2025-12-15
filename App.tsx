@@ -583,7 +583,8 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className={`flex flex-col h-screen w-full ${currentTheme.colors.bg} ${currentTheme.colors.text} overflow-hidden transition-colors duration-500`}>
+    // Changed h-screen to h-dvh for better mobile resizing support
+    <div className={`flex flex-col h-[100dvh] w-full ${currentTheme.colors.bg} ${currentTheme.colors.text} overflow-hidden transition-colors duration-500`}>
       
       {/* Offline Earnings Modal */}
       {offlineGains && (
@@ -672,7 +673,7 @@ const App: React.FC = () => {
       </div>
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col overflow-hidden pt-14 md:pt-0 pb-16 md:pb-0">
+      <main className="flex-1 flex flex-col overflow-hidden pt-14 md:pt-0 pb-16 md:pb-0 min-h-0">
 
         {/* TOP SECTION: Split into Left (Clicker) and Right (Shop) */}
         <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
@@ -823,9 +824,9 @@ const App: React.FC = () => {
 
             {/* --- MOBILE ONLY PANELS (Preserved) --- */}
             
-            {/* Mobile Upgrades Tab */}
+            {/* Mobile Upgrades Tab - Added min-h-0 to allow nested scroll */}
             <div className={`
-                flex-col z-20 shadow-2xl bg-black/20 border-l border-white/5
+                flex-col z-20 shadow-2xl bg-black/20 border-l border-white/5 min-h-0
                 ${mobileTab === 'upgrades' ? 'flex flex-1 w-full' : 'hidden'}
             `}>
                 <UpgradeShop 
@@ -836,9 +837,9 @@ const App: React.FC = () => {
                 />
             </div>
             
-            {/* Mobile Settings Tab */}
+            {/* Mobile Settings Tab - Added min-h-0 */}
             <div className={`
-                flex-1 flex flex-col p-6 overflow-y-auto bg-black/40
+                flex-1 flex flex-col p-6 overflow-y-auto bg-black/40 min-h-0
                 ${mobileTab === 'settings' ? 'flex' : 'hidden'}
             `}>
                 <h2 className="text-2xl font-bold mb-8">Menu</h2>
