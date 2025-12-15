@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ThemeConfig } from '../types';
 import { X, Trophy, Users, Globe, Smartphone } from 'lucide-react';
 import { playSound } from '../utils/sound';
@@ -21,6 +21,9 @@ const MultiplayerGame: React.FC<MultiplayerGameProps> = ({ onClose, theme, initi
   const [timeLeft, setTimeLeft] = useState(10);
   const [winner, setWinner] = useState<number | null>(null);
 
+  // Prevent double reporting
+  const hasReportedResult = useRef(false);
+
   const colors = [
     'bg-red-500',
     'bg-blue-500',
@@ -35,6 +38,7 @@ const MultiplayerGame: React.FC<MultiplayerGameProps> = ({ onClose, theme, initi
     setTimeLeft(10);
     setWinner(null);
     setLocalState('PLAYING');
+    hasReportedResult.current = false;
     playSound('pop');
   };
 
@@ -66,14 +70,14 @@ const MultiplayerGame: React.FC<MultiplayerGameProps> = ({ onClose, theme, initi
   }, [localState, mode]);
 
   useEffect(() => {
-    if (localState === 'FINISHED') {
+    if (localState === 'FINISHED' && !hasReportedResult.current) {
       const maxScore = Math.max(...scores.slice(0, playerCount));
       const winningIndex = scores.findIndex(s => s === maxScore);
       setWinner(winningIndex);
       
+      hasReportedResult.current = true;
+      
       // Local match complete
-      // We only count "wins" for Player 1 (index 0) in local if they win against others
-      // or just count as a "match played"
       onMatchComplete({ 
           winnerIndex: winningIndex, 
           isOnline: false 

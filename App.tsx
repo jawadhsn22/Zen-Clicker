@@ -8,7 +8,7 @@ import Toast from './components/Toast';
 import ChallengeWidget from './components/ChallengeWidget';
 import MultiplayerGame from './components/MultiplayerGame';
 import PrestigeSuccess from './components/PrestigeSuccess';
-import { Crown, Settings, Users, Volume2, VolumeX, Moon, MousePointer2, ShoppingBag, Menu, Sparkles, Save, Vibrate, Trophy, X, Trash2, AlertTriangle } from 'lucide-react';
+import { Crown, Settings, Users, Volume2, VolumeX, Moon, MousePointer2, ShoppingBag, Menu, Sparkles, Save, Vibrate, Trophy, X, Trash2, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { playSound, setVolumes } from './utils/sound';
 
 const App: React.FC = () => {
@@ -16,19 +16,26 @@ const App: React.FC = () => {
     const saved = localStorage.getItem('zenClickerSave');
     if (saved) {
       try {
-        const parsed = JSON.parse(saved);
+        // Attempt to decode (New Format)
+        const decoded = atob(saved);
+        const parsed = JSON.parse(decoded);
         return { 
           ...INITIAL_STATE, 
           ...parsed,
-          theme: parsed.theme || 'zen',
-          prestigeLevel: parsed.prestigeLevel || 0,
-          difficulty: parsed.difficulty || Difficulty.NORMAL,
-          settings: { ...INITIAL_STATE.settings, ...(parsed.settings || {}) },
-          multiplayerMatches: parsed.multiplayerMatches || 0,
-          multiplayerWins: parsed.multiplayerWins || 0
+          settings: { ...INITIAL_STATE.settings, ...(parsed.settings || {}) }
         };
       } catch (e) {
-        return INITIAL_STATE;
+        // Fallback to plain text (Old Format)
+        try {
+            const parsed = JSON.parse(saved);
+            return { 
+                ...INITIAL_STATE, 
+                ...parsed,
+                settings: { ...INITIAL_STATE.settings, ...(parsed.settings || {}) }
+            };
+        } catch (e2) {
+            return INITIAL_STATE;
+        }
       }
     }
     return INITIAL_STATE;
@@ -57,6 +64,9 @@ const App: React.FC = () => {
   const currentTheme = THEMES[gameState.theme] || THEMES['zen'];
   const prestigeMultiplier = 1 + (gameState.prestigeLevel * PRESTIGE_MULTIPLIER_PER_LEVEL);
   const difficultyMult = DIFFICULTY_CONFIG[gameState.difficulty];
+
+  // Dynamic Prestige Threshold: Increases by 50% compounding per level
+  const currentPrestigeThreshold = PRESTIGE_THRESHOLD * Math.pow(1.5, gameState.prestigeLevel);
 
   // --- Initial Load Check for Invites ---
   useEffect(() => {
@@ -120,7 +130,10 @@ const App: React.FC = () => {
   // --- Save Logic (Manual & Auto) ---
   const saveGame = useCallback((state: GameState) => {
     setIsSaving(true);
-    localStorage.setItem('zenClickerSave', JSON.stringify(state));
+    // Simple Obfuscation (Base64)
+    const data = JSON.stringify(state);
+    const encoded = btoa(data);
+    localStorage.setItem('zenClickerSave', encoded);
     setTimeout(() => setIsSaving(false), 800);
   }, []);
 
@@ -282,9 +295,9 @@ const App: React.FC = () => {
     };
 
     setGameState(newState);
-    
-    // CRITICAL: Force synchronous save to localStorage immediately.
-    localStorage.setItem('zenClickerSave', JSON.stringify(newState));
+    // Force immediate save encoded
+    const encoded = btoa(JSON.stringify(newState));
+    localStorage.setItem('zenClickerSave', encoded);
     
     setShowPrestigeSuccess(false);
   };
@@ -326,13 +339,14 @@ const App: React.FC = () => {
     });
   };
 
-  const handleMultiplayerComplete = ({ winnerIndex, isOnline }: { winnerIndex: number | null, isOnline: boolean }) => {
+  // Memoized to prevent infinite loop in multiplayer effect
+  const handleMultiplayerComplete = useCallback(({ winnerIndex, isOnline }: { winnerIndex: number | null, isOnline: boolean }) => {
       setGameState(prev => ({
           ...prev,
           multiplayerMatches: prev.multiplayerMatches + 1,
           multiplayerWins: winnerIndex === 0 ? prev.multiplayerWins + 1 : prev.multiplayerWins
       }));
-  };
+  }, []);
 
   const closeMultiplayer = () => {
       setShowMultiplayer(false);
@@ -460,6 +474,18 @@ const App: React.FC = () => {
                 </div>
         </div>
 
+        {/* Data Info Section */}
+        <div className="pt-6 border-t border-white/5">
+             <h4 className={`text-xs font-bold uppercase tracking-wider mb-3 ${currentTheme.colors.textDim}`}>Data & Privacy</h4>
+             <div className={`p-4 rounded-xl bg-white/5 border ${currentTheme.colors.border} text-xs text-zinc-400 flex items-start gap-3`}>
+                <ShieldCheck size={16} className="text-emerald-500 shrink-0 mt-0.5" />
+                <div>
+                    <p className="mb-1 text-zinc-300 font-medium">Local Save Only</p>
+                    <p>Your progress is saved securely on this device. Clearing your browser data will reset your game.</p>
+                </div>
+             </div>
+        </div>
+
         {/* Danger Zone */}
         <div className="pt-6 border-t border-white/5">
             <h4 className="text-xs font-bold uppercase tracking-wider mb-3 text-red-400">Danger Zone</h4>
@@ -541,7 +567,7 @@ const App: React.FC = () => {
                     <Users size={18} />
                 </button>
 
-                {gameState.points >= PRESTIGE_THRESHOLD && (
+                {gameState.points >= currentPrestigeThreshold && (
                     <button 
                         onClick={() => setShowPrestigeModal(true)}
                         className="p-2 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-lg animate-pulse"
@@ -603,7 +629,7 @@ const App: React.FC = () => {
                 </div>
 
                 {/* Prestige Button (Desktop) */}
-                {gameState.points >= PRESTIGE_THRESHOLD && (
+                {gameState.points >= currentPrestigeThreshold && (
                     <div className="hidden md:block absolute top-4 right-4 z-40 animate-slide-in">
                         <button 
                             onClick={() => setShowPrestigeModal(true)}
@@ -735,7 +761,7 @@ const App: React.FC = () => {
                 </div>
                 
                 <div className="text-center mt-12 mb-8 text-xs text-zinc-600 font-mono">
-                    ZenClicker v1.2.0
+                    ZenClicker v1.2.1
                 </div>
             </div>
         </div>
@@ -784,6 +810,9 @@ const App: React.FC = () => {
                         Current: {prestigeMultiplier.toFixed(1)}x
                         {' -> '}
                         New: {(prestigeMultiplier + PRESTIGE_MULTIPLIER_PER_LEVEL).toFixed(1)}x
+                    </span>
+                    <span className="block mt-4 text-xs text-zinc-500">
+                        Next Prestige Cost: {new Intl.NumberFormat('en-US', { notation: "compact" }).format(currentPrestigeThreshold)} Points
                     </span>
                 </p>
 
