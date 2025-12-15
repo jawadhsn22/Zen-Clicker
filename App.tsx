@@ -531,14 +531,25 @@ const App: React.FC = () => {
       {/* Mobile Top Header */}
       <div className="md:hidden absolute top-0 left-0 right-0 h-14 z-30 flex items-center justify-between px-4 border-b border-white/5 bg-black/90">
             <span className="font-bold text-lg tracking-tight">Zen<span className={currentTheme.colors.accent}>Clicker</span></span>
-            {gameState.points >= PRESTIGE_THRESHOLD && (
+            
+            <div className="flex items-center gap-3">
+                {/* Multiplayer Button Mobile */}
                 <button 
-                    onClick={() => setShowPrestigeModal(true)}
-                    className="p-2 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-lg animate-pulse"
+                    onClick={() => setShowMultiplayer(true)}
+                    className="p-2 rounded-full bg-white/5 text-zinc-400 hover:text-white transition-colors"
                 >
-                    <Crown size={16} />
+                    <Users size={18} />
                 </button>
-            )}
+
+                {gameState.points >= PRESTIGE_THRESHOLD && (
+                    <button 
+                        onClick={() => setShowPrestigeModal(true)}
+                        className="p-2 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-lg animate-pulse"
+                    >
+                        <Crown size={16} />
+                    </button>
+                )}
+            </div>
       </div>
 
       {/* Main Content Area */}
@@ -679,7 +690,7 @@ const App: React.FC = () => {
                         hapticsEnabled={gameState.settings.hapticsEnabled}
                     />
 
-                    {/* Toast Notification */}
+                    {/* Toast Notification Positioned Below Clicker */}
                     {notification && (
                         <div className={`
                             /* Mobile: Absolute positioning above nav bar (prevent layout shift) */

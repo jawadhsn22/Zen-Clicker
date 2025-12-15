@@ -94,7 +94,7 @@ const MultiplayerGame: React.FC<MultiplayerGameProps> = ({ onClose, theme, initi
   // Render Local Game or Menu
   return (
     <div className="fixed inset-0 z-50 bg-zinc-950 flex flex-col font-sans">
-      <div className="absolute top-4 right-4 z-50">
+      <div className="absolute top-4 right-4 z-50 pt-safe">
         <button onClick={onClose} className="p-2 bg-black/50 rounded-full text-white hover:bg-white/20">
           <X size={24} />
         </button>
