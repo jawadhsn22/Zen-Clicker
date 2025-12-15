@@ -1,3 +1,4 @@
+
 import { Upgrade, UpgradeType, Achievement, GameState, ThemeConfig, Difficulty } from './types';
 
 export const INITIAL_STATE: GameState = {
@@ -8,6 +9,7 @@ export const INITIAL_STATE: GameState = {
   upgrades: {},
   unlockedAchievements: [],
   startTime: Date.now(),
+  lastSaveTime: Date.now(), // Initialize with current time
   prestigeLevel: 0,
   theme: 'zen',
   difficulty: Difficulty.NORMAL,

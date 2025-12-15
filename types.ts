@@ -40,6 +40,7 @@ export interface GameState {
   upgrades: Record<string, number>; // id -> count
   unlockedAchievements: string[];
   startTime: number;
+  lastSaveTime: number; // New: For offline earnings
   prestigeLevel: number;
   theme: string;
   difficulty: Difficulty;

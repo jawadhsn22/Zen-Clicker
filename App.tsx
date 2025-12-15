@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { GameState, Upgrade, UpgradeType, ThemeConfig, Challenge, Difficulty, ClickSoundVariant } from './types';
 import { INITIAL_STATE, UPGRADES, ACHIEVEMENTS, THEMES, PRESTIGE_THRESHOLD, PRESTIGE_MULTIPLIER_PER_LEVEL, DIFFICULTY_CONFIG } from './constants';
@@ -8,10 +9,14 @@ import Toast from './components/Toast';
 import ChallengeWidget from './components/ChallengeWidget';
 import MultiplayerGame from './components/MultiplayerGame';
 import PrestigeSuccess from './components/PrestigeSuccess';
+import OfflineModal from './components/OfflineModal';
 import { Crown, Settings, Users, Volume2, VolumeX, Moon, MousePointer2, ShoppingBag, Menu, Sparkles, Save, Vibrate, Trophy, X, Trash2, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { playSound, setVolumes } from './utils/sound';
 
 const App: React.FC = () => {
+  // Temporary storage for offline earnings during initialization
+  const [offlineGains, setOfflineGains] = useState<{ points: number; time: number } | null>(null);
+
   const [gameState, setGameState] = useState<GameState>(() => {
     const saved = localStorage.getItem('zenClickerSave');
     if (saved) {
@@ -19,27 +24,75 @@ const App: React.FC = () => {
         // Attempt to decode (New Format)
         const decoded = atob(saved);
         const parsed = JSON.parse(decoded);
-        return { 
+        const loadedState = { 
           ...INITIAL_STATE, 
           ...parsed,
           settings: { ...INITIAL_STATE.settings, ...(parsed.settings || {}) }
         };
-      } catch (e) {
-        // Fallback to plain text (Old Format)
-        try {
-            const parsed = JSON.parse(saved);
-            return { 
-                ...INITIAL_STATE, 
-                ...parsed,
-                settings: { ...INITIAL_STATE.settings, ...(parsed.settings || {}) }
-            };
-        } catch (e2) {
-            return INITIAL_STATE;
+
+        // --- OFFLINE EARNINGS CALCULATION ---
+        if (loadedState.lastSaveTime && loadedState.autoPointsPerSecond > 0) {
+            const now = Date.now();
+            const diffInSeconds = (now - loadedState.lastSaveTime) / 1000;
+            
+            // Cap at 24 hours (86400 seconds)
+            const cappedSeconds = Math.min(diffInSeconds, 86400);
+
+            if (cappedSeconds > 60) { // Only award if away for more than 1 minute
+                const prestigeMult = 1 + (loadedState.prestigeLevel * PRESTIGE_MULTIPLIER_PER_LEVEL);
+                const diffMult = DIFFICULTY_CONFIG[loadedState.difficulty as Difficulty].outputMult;
+                
+                const earned = Math.floor(cappedSeconds * loadedState.autoPointsPerSecond * prestigeMult * diffMult);
+                
+                if (earned > 0) {
+                    // We modify the initial state directly here so the UI reflects it immediately
+                    loadedState.points += earned;
+                    
+                    // Note: We can't call setOfflineGains here because we are in the initializer.
+                    // We will handle the modal trigger in a useEffect, but we store the value in a temporary global or 
+                    // just re-calculate/check it in useEffect? 
+                    // Better approach: We add a strictly temporary property to the state or handle it via a ref.
+                    // Actually, since we are inside a functional update, we can't set side effects.
+                    // Let's rely on a secondary effect to show the modal, but we MUST know the amount.
+                }
+            }
         }
+        return loadedState;
+      } catch (e) {
+        // Fallback or error
+        return INITIAL_STATE;
       }
     }
     return INITIAL_STATE;
   });
+
+  // Effect to calculate and show offline earnings modal on mount
+  // We do this separately to ensure we have a clean handle on the logic without dirtying the useState init
+  useEffect(() => {
+    const saved = localStorage.getItem('zenClickerSave');
+    if (saved) {
+        try {
+            const decoded = atob(saved);
+            const parsed = JSON.parse(decoded);
+            
+            if (parsed.lastSaveTime && parsed.autoPointsPerSecond > 0) {
+                const now = Date.now();
+                const diffInSeconds = (now - parsed.lastSaveTime) / 1000;
+                const cappedSeconds = Math.min(diffInSeconds, 86400);
+
+                if (cappedSeconds > 60) {
+                     const prestigeMult = 1 + ((parsed.prestigeLevel || 0) * PRESTIGE_MULTIPLIER_PER_LEVEL);
+                     const diffMult = DIFFICULTY_CONFIG[(parsed.difficulty || 'NORMAL') as Difficulty].outputMult;
+                     const earned = Math.floor(cappedSeconds * parsed.autoPointsPerSecond * prestigeMult * diffMult);
+
+                     if (earned > 0) {
+                         setOfflineGains({ points: earned, time: cappedSeconds });
+                     }
+                }
+            }
+        } catch(e) { /* ignore */ }
+    }
+  }, []); // Run once on mount
 
   const [notification, setNotification] = useState<string | null>(null);
   const [activeChallenge, setActiveChallenge] = useState<Challenge | null>(null);
@@ -116,7 +169,7 @@ const App: React.FC = () => {
   // --- Game Loop ---
   useEffect(() => {
     // PERFORMANCE: Pause game loop if modal is open to reduce load
-    if (gameState.autoPointsPerSecond === 0 || isIdle || showPrestigeModal || showPrestigeSuccess) return;
+    if (gameState.autoPointsPerSecond === 0 || isIdle || showPrestigeModal || showPrestigeSuccess || offlineGains) return;
     
     const interval = setInterval(() => {
       setGameState(prev => ({
@@ -125,13 +178,16 @@ const App: React.FC = () => {
       }));
     }, 100);
     return () => clearInterval(interval);
-  }, [gameState.autoPointsPerSecond, prestigeMultiplier, difficultyMult, isIdle, showPrestigeModal, showPrestigeSuccess]);
+  }, [gameState.autoPointsPerSecond, prestigeMultiplier, difficultyMult, isIdle, showPrestigeModal, showPrestigeSuccess, offlineGains]);
 
   // --- Save Logic (Manual & Auto) ---
   const saveGame = useCallback((state: GameState) => {
     setIsSaving(true);
+    // Update lastSaveTime to now
+    const stateToSave = { ...state, lastSaveTime: Date.now() };
+    
     // Simple Obfuscation (Base64)
-    const data = JSON.stringify(state);
+    const data = JSON.stringify(stateToSave);
     const encoded = btoa(data);
     localStorage.setItem('zenClickerSave', encoded);
     setTimeout(() => setIsSaving(false), 800);
@@ -283,6 +339,7 @@ const App: React.FC = () => {
         autoPointsPerSecond: 0,
         upgrades: {},
         startTime: Date.now(),
+        lastSaveTime: Date.now(),
         // Persisted Data
         totalClicks: gameState.totalClicks,
         unlockedAchievements: gameState.unlockedAchievements,
@@ -357,6 +414,113 @@ const App: React.FC = () => {
       setActiveDesktopPanel(prev => prev === panel ? 'none' : panel);
   };
 
+  const renderSettingsContent = () => (
+    <div className="space-y-6">
+      {/* Audio Settings */}
+      <div className="space-y-3">
+        <h4 className={`text-xs uppercase tracking-widest font-bold ${currentTheme.colors.textDim}`}>Audio</h4>
+        
+        {/* SFX Volume */}
+        <div className="flex items-center gap-3">
+           <button onClick={() => handleVolumeChange('sfx', gameState.settings.sfxVolume > 0 ? 0 : 0.5)}>
+             {gameState.settings.sfxVolume > 0 ? <Volume2 size={18} /> : <VolumeX size={18} className="text-zinc-600" />}
+           </button>
+           <input 
+             type="range" 
+             min="0" max="1" step="0.1"
+             value={gameState.settings.sfxVolume}
+             onChange={(e) => handleVolumeChange('sfx', parseFloat(e.target.value))}
+             className="flex-1 h-1.5 bg-white/10 rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white"
+           />
+        </div>
+
+        {/* Music Volume */}
+        <div className="flex items-center gap-3">
+           <button onClick={() => handleVolumeChange('music', gameState.settings.musicVolume > 0 ? 0 : 0.3)}>
+             {gameState.settings.musicVolume > 0 ? <Sparkles size={18} /> : <VolumeX size={18} className="text-zinc-600" />}
+           </button>
+           <input 
+             type="range" 
+             min="0" max="1" step="0.1"
+             value={gameState.settings.musicVolume}
+             onChange={(e) => handleVolumeChange('music', parseFloat(e.target.value))}
+             className="flex-1 h-1.5 bg-white/10 rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white"
+           />
+        </div>
+
+        {/* Click Sound Selector */}
+        <div className="grid grid-cols-4 gap-2 mt-2">
+            {(['default', 'blaster', 'bubble', 'mechanical'] as ClickSoundVariant[]).map(sound => (
+                <button
+                    key={sound}
+                    onClick={() => setClickSound(sound)}
+                    className={`
+                        p-2 rounded-lg text-[10px] font-mono border transition-all
+                        ${gameState.settings.clickSound === sound 
+                            ? `bg-white/10 ${currentTheme.colors.border} text-white` 
+                            : 'border-transparent text-zinc-500 hover:text-zinc-300'}
+                    `}
+                >
+                    {sound}
+                </button>
+            ))}
+        </div>
+      </div>
+
+      {/* Haptics */}
+      <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+              <Vibrate size={18} className={gameState.settings.hapticsEnabled ? currentTheme.colors.accent : 'text-zinc-600'} />
+              <span className="text-sm">Haptic Feedback</span>
+          </div>
+          <button 
+            onClick={toggleHaptics}
+            className={`w-10 h-5 rounded-full relative transition-colors ${gameState.settings.hapticsEnabled ? currentTheme.colors.accent.replace('text-', 'bg-') : 'bg-zinc-800'}`}
+          >
+              <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all ${gameState.settings.hapticsEnabled ? 'left-6' : 'left-1'}`} />
+          </button>
+      </div>
+
+      {/* Themes */}
+      <div className="space-y-3">
+         <h4 className={`text-xs uppercase tracking-widest font-bold ${currentTheme.colors.textDim}`}>Theme</h4>
+         <div className="grid grid-cols-3 gap-2">
+            {Object.values(THEMES).map(t => (
+                <button
+                    key={t.id}
+                    onClick={() => toggleTheme(t.id)}
+                    className={`
+                        p-2 rounded-xl border text-xs font-medium transition-all
+                        ${gameState.theme === t.id 
+                            ? `bg-white/10 ${t.colors.border} text-white` 
+                            : 'border-transparent bg-black/20 text-zinc-500 hover:bg-white/5'}
+                    `}
+                >
+                    {t.label}
+                </button>
+            ))}
+         </div>
+      </div>
+
+       {/* Data Management */}
+       <div className="space-y-3 pt-4 border-t border-white/5">
+            <h4 className={`text-xs uppercase tracking-widest font-bold ${currentTheme.colors.textDim}`}>Data</h4>
+            <div className="flex flex-col gap-2">
+                <button 
+                    onClick={() => setShowResetConfirm(true)}
+                    className="flex items-center gap-2 text-xs text-red-400 hover:text-red-300 transition-colors p-2 hover:bg-red-500/10 rounded-lg w-full"
+                >
+                    <Trash2 size={14} />
+                    Reset Progress
+                </button>
+                 <div className="text-[10px] text-zinc-600 text-center">
+                    Auto-saving enabled
+                </div>
+            </div>
+       </div>
+    </div>
+  );
+
   if (showMultiplayer) {
     return <MultiplayerGame onClose={closeMultiplayer} theme={currentTheme} initialRoomId={inviteRoomId} onMatchComplete={handleMultiplayerComplete} />;
   }
@@ -365,144 +529,19 @@ const App: React.FC = () => {
     return <PrestigeSuccess level={gameState.prestigeLevel + 1} newMultiplier={1 + (gameState.prestigeLevel + 1) * PRESTIGE_MULTIPLIER_PER_LEVEL} onComplete={handlePrestigeComplete} />;
   }
 
-  // --- Render Settings Content ---
-  const renderSettingsContent = () => (
-    <div className="space-y-8 animate-slide-in">
-        <div>
-            <h4 className={`text-xs font-bold uppercase tracking-wider mb-3 ${currentTheme.colors.textDim}`}>Theme</h4>
-            <div className="grid grid-cols-3 gap-2">
-                {Object.values(THEMES).map(t => (
-                    <button
-                        key={t.id}
-                        onClick={() => toggleTheme(t.id)}
-                        className={`text-xs py-3 rounded-xl border transition-all ${t.id === gameState.theme ? `${currentTheme.colors.accent} border-current bg-white/5` : `border-transparent hover:bg-white/5`}`}
-                    >
-                        {t.label}
-                    </button>
-                ))}
-            </div>
-        </div>
-
-        <div>
-            <h4 className={`text-xs font-bold uppercase tracking-wider mb-3 ${currentTheme.colors.textDim}`}>Difficulty</h4>
-            <div className="grid grid-cols-3 gap-2">
-                {Object.values(Difficulty).map(d => (
-                    <button
-                        key={d}
-                        onClick={() => setDifficulty(d)}
-                        className={`text-xs py-3 rounded-xl border transition-all ${d === gameState.difficulty ? `${currentTheme.colors.accent} border-current bg-white/5` : `border-transparent hover:bg-white/5`}`}
-                    >
-                        {d.toLowerCase()}
-                    </button>
-                ))}
-            </div>
-        </div>
-
-        <div>
-                <h4 className={`text-xs font-bold uppercase tracking-wider mb-3 ${currentTheme.colors.textDim}`}>Sound & Haptics</h4>
-                <div className="space-y-6">
-                <div className="flex items-center gap-4">
-                    <Volume2 size={20} className={currentTheme.colors.textDim} />
-                    <div className="flex-1">
-                        <div className="flex justify-between text-[10px] mb-2 uppercase font-medium tracking-wider">
-                            <span>SFX</span>
-                            <span>{Math.round(gameState.settings.sfxVolume * 100)}%</span>
-                        </div>
-                        <input 
-                            type="range" min="0" max="1" step="0.1" 
-                            value={gameState.settings.sfxVolume}
-                            onChange={(e) => handleVolumeChange('sfx', parseFloat(e.target.value))}
-                            className="w-full h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer accent-white"
-                        />
-                    </div>
-                </div>
-                <div className="flex items-center gap-4">
-                    {gameState.settings.musicVolume > 0 ? <Volume2 size={20} className={currentTheme.colors.textDim} /> : <VolumeX size={20} className={currentTheme.colors.textDim} />}
-                    <div className="flex-1">
-                        <div className="flex justify-between text-[10px] mb-2 uppercase font-medium tracking-wider">
-                            <span>Ambience</span>
-                            <span>{Math.round(gameState.settings.musicVolume * 100)}%</span>
-                        </div>
-                        <input 
-                            type="range" min="0" max="1" step="0.1" 
-                            value={gameState.settings.musicVolume}
-                            onChange={(e) => handleVolumeChange('music', parseFloat(e.target.value))}
-                            className="w-full h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer accent-white"
-                        />
-                    </div>
-                </div>
-
-                <div className="flex items-center justify-between">
-                   <div className="flex items-center gap-4">
-                      <Vibrate size={20} className={currentTheme.colors.textDim} />
-                      <span className="text-xs uppercase font-medium tracking-wider">Vibration</span>
-                   </div>
-                   <button 
-                      onClick={toggleHaptics}
-                      className={`
-                        w-12 h-6 rounded-full p-1 transition-colors
-                        ${gameState.settings.hapticsEnabled ? currentTheme.colors.accent.replace('text-', 'bg-') : 'bg-white/10'}
-                      `}
-                   >
-                      <div className={`
-                        w-4 h-4 rounded-full bg-white shadow-sm transition-transform
-                        ${gameState.settings.hapticsEnabled ? 'translate-x-6' : 'translate-x-0'}
-                      `} />
-                   </button>
-                </div>
-                
-                <div>
-                   <div className="text-[10px] uppercase font-medium tracking-wider mb-3 mt-4 text-zinc-500">Click Effect</div>
-                   <div className="grid grid-cols-2 gap-2">
-                      {(['default', 'blaster', 'bubble', 'mechanical'] as ClickSoundVariant[]).map(sound => (
-                        <button
-                          key={sound}
-                          onClick={() => setClickSound(sound)}
-                          className={`
-                            flex items-center justify-center gap-2 py-2 px-3 rounded-lg border text-xs font-medium transition-all
-                            ${gameState.settings.clickSound === sound 
-                              ? `bg-white/10 ${currentTheme.colors.border} ${currentTheme.colors.accent}` 
-                              : 'bg-transparent border-transparent hover:bg-white/5 text-zinc-400'}
-                          `}
-                        >
-                          {sound === 'blaster' && <Sparkles size={12} />}
-                          <span className="capitalize">{sound}</span>
-                        </button>
-                      ))}
-                   </div>
-                </div>
-                </div>
-        </div>
-
-        {/* Data Info Section */}
-        <div className="pt-6 border-t border-white/5">
-             <h4 className={`text-xs font-bold uppercase tracking-wider mb-3 ${currentTheme.colors.textDim}`}>Data & Privacy</h4>
-             <div className={`p-4 rounded-xl bg-white/5 border ${currentTheme.colors.border} text-xs text-zinc-400 flex items-start gap-3`}>
-                <ShieldCheck size={16} className="text-emerald-500 shrink-0 mt-0.5" />
-                <div>
-                    <p className="mb-1 text-zinc-300 font-medium">Local Save Only</p>
-                    <p>Your progress is saved securely on this device. Clearing your browser data will reset your game.</p>
-                </div>
-             </div>
-        </div>
-
-        {/* Danger Zone */}
-        <div className="pt-6 border-t border-white/5">
-            <h4 className="text-xs font-bold uppercase tracking-wider mb-3 text-red-400">Danger Zone</h4>
-            <button 
-                onClick={() => setShowResetConfirm(true)}
-                className="w-full py-3 flex items-center justify-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 transition-colors"
-            >
-                <Trash2 size={16} />
-                <span className="text-xs font-medium uppercase tracking-wide">Reset Game Progress</span>
-            </button>
-        </div>
-    </div>
-  );
-
   return (
     <div className={`flex flex-col h-screen w-full ${currentTheme.colors.bg} ${currentTheme.colors.text} overflow-hidden transition-colors duration-500`}>
       
+      {/* Offline Earnings Modal */}
+      {offlineGains && (
+          <OfflineModal 
+            earnings={offlineGains.points} 
+            timeAway={offlineGains.time} 
+            theme={currentTheme}
+            onClose={() => setOfflineGains(null)}
+          />
+      )}
+
       {/* Auto Save Indicator */}
       <div className={`
         fixed z-50 transition-all duration-500 pointer-events-none flex items-center gap-2
@@ -514,7 +553,7 @@ const App: React.FC = () => {
       </div>
 
       {/* Idle Overlay */}
-      {isIdle && (
+      {isIdle && !offlineGains && (
          <div className="absolute inset-0 z-[60] backdrop-blur-md bg-black/40 flex flex-col items-center justify-center animate-slide-in px-4">
             <div className={`p-8 rounded-3xl ${currentTheme.colors.panelBg} border ${currentTheme.colors.border} text-center shadow-2xl transform transition-transform hover:scale-105 max-w-sm w-full`}>
                <Moon size={48} className={`mx-auto mb-4 ${currentTheme.colors.accent} animate-pulse`} />
