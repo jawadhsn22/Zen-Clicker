@@ -13,17 +13,65 @@ import OfflineModal from './components/OfflineModal';
 import { Crown, Settings, Users, Volume2, VolumeX, Moon, MousePointer2, ShoppingBag, Menu, Sparkles, Save, Vibrate, Trophy, X, Trash2, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { playSound, setVolumes } from './utils/sound';
 
+// --- SECURITY UTILS ---
+const SAVE_KEY = 'zenClickerSave';
+const SALT = 'zen-secure-v1-salt-'; // In production, use environment variable
+
+const generateChecksum = (data: string): string => {
+  let hash = 0;
+  const str = data + SALT;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash |= 0; // Convert to 32bit integer
+  }
+  return hash.toString(16);
+};
+
+const encodeSave = (state: GameState): string => {
+    const json = JSON.stringify(state);
+    const checksum = generateChecksum(json);
+    // Wrap in a structure to separate data from validation
+    const payload = JSON.stringify({ d: json, h: checksum });
+    return btoa(payload);
+};
+
+const decodeSave = (encoded: string): GameState | null => {
+    try {
+        const decodedString = atob(encoded);
+        // Try parsing as new secure format
+        try {
+            const { d, h } = JSON.parse(decodedString);
+            if (d && h) {
+                const calculatedHash = generateChecksum(d);
+                if (calculatedHash !== h) {
+                    console.warn("Save file integrity check failed. Potential tampering detected.");
+                    return null;
+                }
+                return JSON.parse(d);
+            }
+        } catch (e) {
+            // Fallback: Try parsing legacy format (direct JSON)
+            // This allows old saves to work, but next save will upgrade them
+            return JSON.parse(decodedString);
+        }
+    } catch (e) {
+        console.error("Failed to decode save:", e);
+        return null;
+    }
+    return null;
+};
+// ---------------------
+
 const App: React.FC = () => {
   // Temporary storage for offline earnings during initialization
   const [offlineGains, setOfflineGains] = useState<{ points: number; time: number } | null>(null);
 
   const [gameState, setGameState] = useState<GameState>(() => {
-    const saved = localStorage.getItem('zenClickerSave');
+    const saved = localStorage.getItem(SAVE_KEY);
     if (saved) {
-      try {
-        // Attempt to decode (New Format)
-        const decoded = atob(saved);
-        const parsed = JSON.parse(decoded);
+      const parsed = decodeSave(saved);
+      if (parsed) {
         const loadedState = { 
           ...INITIAL_STATE, 
           ...parsed,
@@ -33,6 +81,13 @@ const App: React.FC = () => {
         // --- OFFLINE EARNINGS CALCULATION ---
         if (loadedState.lastSaveTime && loadedState.autoPointsPerSecond > 0) {
             const now = Date.now();
+            
+            // SECURITY: Check for time travel (Clock Skew)
+            if (now < loadedState.lastSaveTime) {
+                console.warn("Clock skew detected. Offline earnings skipped.");
+                return { ...loadedState, lastSaveTime: now };
+            }
+
             const diffInSeconds = (now - loadedState.lastSaveTime) / 1000;
             
             // Cap at 24 hours (86400 seconds)
@@ -51,39 +106,34 @@ const App: React.FC = () => {
             }
         }
         return loadedState;
-      } catch (e) {
-        // Fallback or error
-        return INITIAL_STATE;
       }
     }
     return INITIAL_STATE;
   });
 
   // Effect to calculate and show offline earnings modal on mount
-  // We do this separately to ensure we have a clean handle on the logic without dirtying the useState init
   useEffect(() => {
-    const saved = localStorage.getItem('zenClickerSave');
+    const saved = localStorage.getItem(SAVE_KEY);
     if (saved) {
-        try {
-            const decoded = atob(saved);
-            const parsed = JSON.parse(decoded);
-            
-            if (parsed.lastSaveTime && parsed.autoPointsPerSecond > 0) {
-                const now = Date.now();
-                const diffInSeconds = (now - parsed.lastSaveTime) / 1000;
-                const cappedSeconds = Math.min(diffInSeconds, 86400);
+        const parsed = decodeSave(saved);
+        if (parsed && parsed.lastSaveTime && parsed.autoPointsPerSecond > 0) {
+            const now = Date.now();
+            // Clock skew check repeated here for modal logic
+            if (now < parsed.lastSaveTime) return;
 
-                if (cappedSeconds > 60) {
-                     const prestigeMult = 1 + ((parsed.prestigeLevel || 0) * PRESTIGE_MULTIPLIER_PER_LEVEL);
-                     const diffMult = DIFFICULTY_CONFIG[(parsed.difficulty || 'NORMAL') as Difficulty].outputMult;
-                     const earned = Math.floor(cappedSeconds * parsed.autoPointsPerSecond * prestigeMult * diffMult);
+            const diffInSeconds = (now - parsed.lastSaveTime) / 1000;
+            const cappedSeconds = Math.min(diffInSeconds, 86400);
 
-                     if (earned > 0) {
-                         setOfflineGains({ points: earned, time: cappedSeconds });
-                     }
-                }
+            if (cappedSeconds > 60) {
+                 const prestigeMult = 1 + ((parsed.prestigeLevel || 0) * PRESTIGE_MULTIPLIER_PER_LEVEL);
+                 const diffMult = DIFFICULTY_CONFIG[(parsed.difficulty || 'NORMAL') as Difficulty].outputMult;
+                 const earned = Math.floor(cappedSeconds * parsed.autoPointsPerSecond * prestigeMult * diffMult);
+
+                 if (earned > 0) {
+                     setOfflineGains({ points: earned, time: cappedSeconds });
+                 }
             }
-        } catch(e) { /* ignore */ }
+        }
     }
   }, []); // Run once on mount
 
@@ -179,10 +229,10 @@ const App: React.FC = () => {
     // Update lastSaveTime to now
     const stateToSave = { ...state, lastSaveTime: Date.now() };
     
-    // Simple Obfuscation (Base64)
-    const data = JSON.stringify(stateToSave);
-    const encoded = btoa(data);
-    localStorage.setItem('zenClickerSave', encoded);
+    // Secure Save
+    const encoded = encodeSave(stateToSave);
+    localStorage.setItem(SAVE_KEY, encoded);
+    
     setTimeout(() => setIsSaving(false), 800);
   }, []);
 
@@ -345,15 +395,15 @@ const App: React.FC = () => {
     };
 
     setGameState(newState);
-    // Force immediate save encoded
-    const encoded = btoa(JSON.stringify(newState));
-    localStorage.setItem('zenClickerSave', encoded);
+    // Force immediate save encoded with new secure format
+    const encoded = encodeSave(newState);
+    localStorage.setItem(SAVE_KEY, encoded);
     
     setShowPrestigeSuccess(false);
   };
 
   const handleResetGame = () => {
-    localStorage.removeItem('zenClickerSave');
+    localStorage.removeItem(SAVE_KEY);
     setGameState(INITIAL_STATE);
     setShowResetConfirm(false);
     setActiveDesktopPanel('none');

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Peer, DataConnection } from 'peerjs';
 import { ThemeConfig } from '../types';
@@ -29,6 +30,8 @@ interface GameMessage {
 
 const GAME_DURATION = 10;
 const MAX_PLAYERS = 4;
+// Rate limit: Max 20 clicks per second (50ms interval) to prevent macro spam
+const MIN_CLICK_INTERVAL_MS = 50; 
 
 const PLAYER_COLORS = [
   'text-red-500',    // P1
@@ -61,6 +64,9 @@ const OnlineDuel: React.FC<OnlineDuelProps> = ({ initialRoomId, onClose, theme, 
   const hostConnRef = useRef<DataConnection | null>(null); // For Guest: Connection to host
   const timerRef = useRef<number | null>(null);
   const handshakeTimeoutRef = useRef<number | null>(null);
+  
+  // Rate Limiting Refs (Host Side)
+  const lastClickTimeRef = useRef<Record<string, number>>({});
 
   // --- Initialization ---
 
@@ -190,6 +196,15 @@ const OnlineDuel: React.FC<OnlineDuelProps> = ({ initialRoomId, onClose, theme, 
         break;
       
       case 'CLICK':
+        // RATE LIMITING CHECK
+        const now = Date.now();
+        const lastClick = lastClickTimeRef.current[senderId] || 0;
+        if (now - lastClick < MIN_CLICK_INTERVAL_MS) {
+            // Ignored - too fast (likely bot/script)
+            return;
+        }
+        lastClickTimeRef.current[senderId] = now;
+
         // Update score for specific player
         setPlayers(prev => {
           const next = prev.map(p => {
@@ -290,6 +305,7 @@ const OnlineDuel: React.FC<OnlineDuelProps> = ({ initialRoomId, onClose, theme, 
     // Reset scores
     setPlayers(prev => prev.map(p => ({ ...p, score: 0 })));
     setTimeLeft(GAME_DURATION);
+    lastClickTimeRef.current = {}; // Reset limiters
     
     let count = 3;
     const countTimer = setInterval(() => {
